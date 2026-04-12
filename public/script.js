@@ -4,12 +4,6 @@ const showLogin = document.getElementById("show-login");
 const showSignup = document.getElementById("show-signup");
 const formTitle = document.getElementById("form-title");
 const messageBox = document.getElementById("message");
-const profileBox = document.getElementById("profile-box");
-const logoutBtn = document.getElementById("logout-btn");
-
-const profileName = document.getElementById("profile-name");
-const profileEmail = document.getElementById("profile-email");
-const profilePhone = document.getElementById("profile-phone");
 
 function showMessage(text, type) {
   messageBox.classList.remove("d-none", "alert-success", "alert-danger");
@@ -25,7 +19,6 @@ function clearMessage() {
 showLogin.addEventListener("click", () => {
   signupForm.classList.add("d-none");
   loginForm.classList.remove("d-none");
-  profileBox.classList.add("d-none");
   formTitle.textContent = "Login";
   clearMessage();
 });
@@ -33,7 +26,6 @@ showLogin.addEventListener("click", () => {
 showSignup.addEventListener("click", () => {
   loginForm.classList.add("d-none");
   signupForm.classList.remove("d-none");
-  profileBox.classList.add("d-none");
   formTitle.textContent = "Create Account";
   clearMessage();
 });
@@ -49,10 +41,6 @@ signupForm.addEventListener("submit", async (e) => {
 
   if (!name || !email || !phone || !password) {
     return showMessage("Please fill all signup fields", "error");
-  }
-
-  if (password.length < 6) {
-    return showMessage("Password must be at least 6 characters", "error");
   }
 
   try {
@@ -103,7 +91,6 @@ loginForm.addEventListener("submit", async (e) => {
       localStorage.setItem("token", data.token);
       showMessage(data.message, "success");
       loginForm.reset();
-      fetchProfile();
     } else {
       showMessage(data.message || "Login failed", "error");
     }
@@ -111,45 +98,3 @@ loginForm.addEventListener("submit", async (e) => {
     showMessage("Server error during login", "error");
   }
 });
-
-async function fetchProfile() {
-  const token = localStorage.getItem("token");
-
-  if (!token) return;
-
-  try {
-    const res = await fetch("/user/profile", {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-
-    const data = await res.json();
-
-    if (res.ok) {
-      signupForm.classList.add("d-none");
-      loginForm.classList.add("d-none");
-      profileBox.classList.remove("d-none");
-      formTitle.textContent = "Welcome";
-
-      profileName.textContent = data.user.name;
-      profileEmail.textContent = data.user.email;
-      profilePhone.textContent = data.user.phone;
-    } else {
-      localStorage.removeItem("token");
-    }
-  } catch (error) {
-    console.error("Error fetching profile:", error);
-  }
-}
-
-logoutBtn.addEventListener("click", () => {
-  localStorage.removeItem("token");
-  profileBox.classList.add("d-none");
-  signupForm.classList.remove("d-none");
-  formTitle.textContent = "Create Account";
-  clearMessage();
-});
-
-window.addEventListener("DOMContentLoaded", fetchProfile);

@@ -1,0 +1,27 @@
+# Node modules (very large, never push)
+node_modules/
+
+# Environment variables (VERY IMPORTANT - contains passwords, secrets)
+.env
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Sequelize files (optional)
+config/config.json
+
+# IDE files
+.vscode/
+.idea/
+
+# Build / temp files
+dist/
+build/
