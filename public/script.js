@@ -40,7 +40,13 @@ signupForm.addEventListener("submit", async (e) => {
   const password = document.getElementById("signup-password").value.trim();
 
   if (!name || !email || !phone || !password) {
-    return showMessage("Please fill all signup fields", "error");
+    showMessage("Please fill all signup fields", "error");
+    return;
+  }
+
+  if (password.length < 6) {
+    showMessage("Password must be at least 6 characters", "error");
+    return;
   }
 
   try {
@@ -55,13 +61,14 @@ signupForm.addEventListener("submit", async (e) => {
     const data = await res.json();
 
     if (res.ok) {
-      showMessage(data.message, "success");
+      showMessage(data.message || "Signup successful", "success");
       signupForm.reset();
     } else {
       showMessage(data.message || "Signup failed", "error");
     }
   } catch (error) {
     showMessage("Server error during signup", "error");
+    console.error("Signup error:", error);
   }
 });
 
@@ -73,7 +80,8 @@ loginForm.addEventListener("submit", async (e) => {
   const password = document.getElementById("login-password").value.trim();
 
   if (!identifier || !password) {
-    return showMessage("Please fill all login fields", "error");
+    showMessage("Please fill all login fields", "error");
+    return;
   }
 
   try {
@@ -89,12 +97,16 @@ loginForm.addEventListener("submit", async (e) => {
 
     if (res.ok) {
       localStorage.setItem("token", data.token);
-      showMessage(data.message, "success");
+      showMessage(data.message || "Login successful", "success");
       loginForm.reset();
+
+      // Optional redirect after login
+      // window.location.href = "/chat.html";
     } else {
       showMessage(data.message || "Login failed", "error");
     }
   } catch (error) {
     showMessage("Server error during login", "error");
+    console.error("Login error:", error);
   }
 });
