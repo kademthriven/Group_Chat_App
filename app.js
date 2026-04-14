@@ -1,6 +1,9 @@
 const express = require("express");
+const http = require("http");
 const path = require("path");
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
+const { WebSocketServer, WebSocket } = require("ws");
 require("dotenv").config();
 
 const authRoutes = require("./routes/authRoutes");
@@ -8,10 +11,25 @@ const messageRoutes = require("./routes/messageRoutes");
 const db = require("./models");
 
 const app = express();
+const httpServer = http.createServer(app);
+const wss = new WebSocketServer({ noServer: true });
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.locals.broadcastMessage = (message) => {
+  const payload = JSON.stringify({
+    type: "message.created",
+    payload: message
+  });
+
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(payload);
+    }
+  });
+};
 
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/user", authRoutes);
@@ -23,6 +41,51 @@ app.get("/", (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 let server;
+
+wss.on("connection", (socket, request) => {
+  socket.user = request.user;
+
+  socket.send(
+    JSON.stringify({
+      type: "connection.ready",
+      payload: {
+        userId: request.user.id
+      }
+    })
+  );
+
+  socket.on("error", (error) => {
+    console.error("WebSocket error:", error);
+  });
+});
+
+httpServer.on("upgrade", (request, socket, head) => {
+  try {
+    const requestUrl = new URL(request.url, `http://${request.headers.host}`);
+
+    if (requestUrl.pathname !== "/ws") {
+      socket.destroy();
+      return;
+    }
+
+    const token = requestUrl.searchParams.get("token");
+
+    if (!token) {
+      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+
+    request.user = jwt.verify(token, process.env.JWT_SECRET);
+
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit("connection", ws, request);
+    });
+  } catch (error) {
+    socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+    socket.destroy();
+  }
+});
 
 process.on("uncaughtException", (error) => {
   console.error("Uncaught exception:", error);
@@ -47,6 +110,9 @@ app.use((err, req, res, next) => {
 process.on("SIGINT", () => {
   console.log(`Received SIGINT. Shutting down server process ${process.pid}`);
 
+  wss.clients.forEach((client) => client.close());
+  wss.close();
+
   if (server) {
     server.close(() => {
       console.log("HTTP server closed");
@@ -62,7 +128,7 @@ db.sequelize
   .authenticate()
   .then(() => {
     console.log(`Database connected successfully for process ${process.pid}`);
-    server = app.listen(PORT, () => {
+    server = httpServer.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT} with PID ${process.pid}`);
     });
 

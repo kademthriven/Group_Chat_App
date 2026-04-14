@@ -4,11 +4,16 @@ const chatMessages = document.getElementById("chatMessages");
 const headerUserName = document.getElementById("headerUserName");
 const sidebarUserPill = document.getElementById("sidebarUserPill");
 const logoutButton = document.getElementById("logoutButton");
+const renderedMessageIds = new Set();
+const pollingIntervalMs = 15000;
 const dateDividerMarkup = `
   <div class="date-divider">
     <span>Today</span>
   </div>
 `;
+let chatSocket;
+let pollingIntervalId;
+let reconnectTimeoutId;
 
 function getStoredUser() {
   const rawUser = localStorage.getItem("chatUser");
@@ -66,6 +71,7 @@ function applyUserProfile() {
 
 function clearMessages() {
   chatMessages.innerHTML = dateDividerMarkup;
+  renderedMessageIds.clear();
 }
 
 function formatMessageTime(dateValue) {
@@ -105,6 +111,28 @@ function createMessageElement({ text, type = "sent", senderName = "", createdAt 
   return row;
 }
 
+function appendMessage(message) {
+  const messageId = String(message.id || "");
+
+  if (messageId && renderedMessageIds.has(messageId)) {
+    return;
+  }
+
+  if (messageId) {
+    renderedMessageIds.add(messageId);
+  }
+
+  const messageElement = createMessageElement({
+    text: message.message,
+    type: getMessageType(message.userId),
+    senderName: message.sender?.name || "Unknown",
+    createdAt: message.createdAt
+  });
+
+  chatMessages.appendChild(messageElement);
+  scrollToBottom();
+}
+
 function getMessageType(messageUserId) {
   const user = getStoredUser();
   return user && Number(user.id) === Number(messageUserId) ? "sent" : "received";
@@ -114,17 +142,8 @@ function renderMessages(messages) {
   clearMessages();
 
   messages.forEach((message) => {
-    const messageElement = createMessageElement({
-      text: message.message,
-      type: getMessageType(message.userId),
-      senderName: message.sender?.name || "Unknown",
-      createdAt: message.createdAt
-    });
-
-    chatMessages.appendChild(messageElement);
+    appendMessage(message);
   });
-
-  scrollToBottom();
 }
 
 async function loadMessages() {
@@ -144,6 +163,82 @@ async function loadMessages() {
   } catch (error) {
     console.error("Error loading messages:", error);
   }
+}
+
+function buildWebSocketUrl() {
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(getToken())}`;
+}
+
+function startPolling() {
+  if (pollingIntervalId) {
+    return;
+  }
+
+  pollingIntervalId = window.setInterval(() => {
+    loadMessages();
+  }, pollingIntervalMs);
+}
+
+function stopPolling() {
+  if (!pollingIntervalId) {
+    return;
+  }
+
+  window.clearInterval(pollingIntervalId);
+  pollingIntervalId = null;
+}
+
+function scheduleReconnect() {
+  if (reconnectTimeoutId) {
+    return;
+  }
+
+  reconnectTimeoutId = window.setTimeout(() => {
+    reconnectTimeoutId = null;
+    connectWebSocket();
+  }, 3000);
+}
+
+function connectWebSocket() {
+  if (!getToken()) {
+    return;
+  }
+
+  if (chatSocket && (chatSocket.readyState === WebSocket.OPEN || chatSocket.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
+  chatSocket = new WebSocket(buildWebSocketUrl());
+
+  chatSocket.addEventListener("open", () => {
+    stopPolling();
+  });
+
+  chatSocket.addEventListener("message", (event) => {
+    try {
+      const data = JSON.parse(event.data);
+
+      if (data.type === "message.created" && data.payload) {
+        appendMessage(data.payload);
+      }
+    } catch (error) {
+      console.error("Error processing live message:", error);
+    }
+  });
+
+  chatSocket.addEventListener("close", () => {
+    if (!getToken()) {
+      return;
+    }
+
+    startPolling();
+    scheduleReconnect();
+  });
+
+  chatSocket.addEventListener("error", (error) => {
+    console.error("WebSocket connection error:", error);
+  });
 }
 
 chatForm.addEventListener("submit", async (e) => {
@@ -168,25 +263,29 @@ chatForm.addEventListener("submit", async (e) => {
       throw new Error(data.message || "Unable to save message");
     }
 
-    const messageElement = createMessageElement({
-      text: data.data.message,
-      type: "sent",
-      senderName: data.data.sender?.name || "",
-      createdAt: data.data.createdAt
-    });
+    if (!chatSocket || chatSocket.readyState !== WebSocket.OPEN) {
+      appendMessage(data.data);
+    }
 
-    chatMessages.appendChild(messageElement);
     messageInput.value = "";
   } catch (error) {
     console.error("Error saving message:", error);
   }
-
-  scrollToBottom();
 });
 
 logoutButton.addEventListener("click", () => {
   localStorage.removeItem("token");
   localStorage.removeItem("chatUser");
+
+  if (reconnectTimeoutId) {
+    window.clearTimeout(reconnectTimeoutId);
+    reconnectTimeoutId = null;
+  }
+
+  if (chatSocket) {
+    chatSocket.close();
+  }
+
   redirectToLogin();
 });
 
@@ -198,5 +297,7 @@ window.addEventListener("DOMContentLoaded", () => {
   applyUserProfile();
   clearMessages();
   loadMessages();
+  startPolling();
+  connectWebSocket();
   messageInput.focus();
 });

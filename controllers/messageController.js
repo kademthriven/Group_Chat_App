@@ -47,6 +47,8 @@ exports.createMessage = async (req, res) => {
       ]
     });
 
+    req.app.locals.broadcastMessage?.(savedMessage.toJSON());
+
     return res.status(201).json({
       message: "Message stored successfully",
       data: savedMessage
