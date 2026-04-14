@@ -6,7 +6,9 @@ const sidebarUserPill = document.getElementById("sidebarUserPill");
 const logoutButton = document.getElementById("logoutButton");
 const chatTitle = document.getElementById("chatTitle");
 const chatSubtitle = document.getElementById("chatSubtitle");
-const chatItems = Array.from(document.querySelectorAll(".chat-item"));
+const personalChatForm = document.getElementById("personalChatForm");
+const roomEmailInput = document.getElementById("roomEmailInput");
+const dynamicPersonalChats = document.getElementById("dynamicPersonalChats");
 const renderedMessageIds = new Set();
 const socketServerUrl = window.location.origin;
 const dateDividerMarkup = `
@@ -20,10 +22,11 @@ let activeConversation = {
   type: "group",
   name: "General Group",
   subtitle: "12 members online",
-  targetUserId: null,
-  room: null
+  roomId: null,
+  email: null
 };
 const personalMessagesByRoom = new Map();
+const baseChatItems = Array.from(document.querySelectorAll(".chat-item"));
 
 function getStoredUser() {
   const rawUser = localStorage.getItem("chatUser");
@@ -84,14 +87,19 @@ function clearMessages() {
   renderedMessageIds.clear();
 }
 
-function getPersonalRoomKey(targetUserId) {
-  const currentUser = getStoredUser();
+function normalizeEmail(email = "") {
+  return email.trim().toLowerCase();
+}
 
-  if (!currentUser || !targetUserId) {
+function getPersonalRoomKey(targetEmail) {
+  const currentUser = getStoredUser();
+  const normalizedTargetEmail = normalizeEmail(targetEmail);
+
+  if (!currentUser?.email || !normalizedTargetEmail) {
     return null;
   }
 
-  return [Number(currentUser.id), Number(targetUserId)].sort((a, b) => a - b).join(":");
+  return [normalizeEmail(currentUser.email), normalizedTargetEmail].sort().join("::");
 }
 
 function formatMessageTime(dateValue) {
@@ -223,8 +231,8 @@ function connectWebSocket() {
   });
 
   chatSocket.on("connect", () => {
-    if (activeConversation.targetUserId) {
-      joinPersonalRoom(activeConversation.targetUserId);
+    if (activeConversation.roomId) {
+      joinPersonalRoom(activeConversation.roomId);
     }
   });
 
@@ -234,18 +242,18 @@ function connectWebSocket() {
     }
   });
 
-  chatSocket.on("personal_message", (data) => {
+  chatSocket.on("new_message", (data) => {
     const message = data?.payload;
 
-    if (!message?.room) {
+    if (!message?.roomId) {
       return;
     }
 
-    const roomMessages = personalMessagesByRoom.get(message.room) || [];
+    const roomMessages = personalMessagesByRoom.get(message.roomId) || [];
     roomMessages.push(message);
-    personalMessagesByRoom.set(message.room, roomMessages);
+    personalMessagesByRoom.set(message.roomId, roomMessages);
 
-    if (activeConversation.type === "personal" && activeConversation.room === message.room) {
+    if (activeConversation.type === "personal" && activeConversation.roomId === message.roomId) {
       appendMessage(message);
     }
   });
@@ -273,40 +281,94 @@ function updateConversationHeader() {
   chatSubtitle.textContent = activeConversation.subtitle;
 }
 
+function getChatItems() {
+  return Array.from(document.querySelectorAll(".chat-item"));
+}
+
 function setActiveChatItem(nextItem) {
-  chatItems.forEach((item) => {
+  getChatItems().forEach((item) => {
     item.classList.toggle("active", item === nextItem);
   });
 }
 
-function joinPersonalRoom(targetUserId) {
+function createPersonalChatItem(email) {
+  const item = document.createElement("div");
+  item.className = "chat-item";
+  item.dataset.chatType = "personal";
+  item.dataset.chatName = email;
+  item.dataset.chatStatus = `Direct conversation with ${email}`;
+  item.dataset.roomId = getPersonalRoomKey(email);
+  item.dataset.email = email;
+
+  item.innerHTML = `
+    <div class="avatar alt">${email.charAt(0).toUpperCase()}</div>
+    <div class="chat-info">
+      <h6 class="mb-1">${email}</h6>
+      <small>Direct messages</small>
+    </div>
+  `;
+
+  item.addEventListener("click", () => {
+    activateConversation(item);
+  });
+
+  return item;
+}
+
+function ensurePersonalChatItem(email) {
+  const normalizedEmail = normalizeEmail(email);
+  const existingItem = dynamicPersonalChats.querySelector(`[data-email="${normalizedEmail}"]`);
+
+  if (existingItem) {
+    return existingItem;
+  }
+
+  const nextItem = createPersonalChatItem(normalizedEmail);
+  dynamicPersonalChats.prepend(nextItem);
+  return nextItem;
+}
+
+function joinPersonalRoom(roomId) {
   if (!chatSocket?.connected) {
     return;
   }
 
-  chatSocket.emit("join_room", { targetUserId }, (response) => {
+  chatSocket.emit("join_room", { roomId }, (response) => {
     if (!response?.ok) {
       console.error(response?.message || "Unable to join personal room");
       return;
     }
 
-    activeConversation.room = response.room;
-    renderPersonalMessages(response.room);
+    activeConversation.roomId = response.roomId;
+    renderPersonalMessages(response.roomId);
   });
+}
+
+function leavePersonalRoom(roomId) {
+  if (!chatSocket?.connected || !roomId) {
+    return;
+  }
+
+  chatSocket.emit("leave_room", { roomId });
 }
 
 function activateConversation(item) {
   const type = item.dataset.chatType || "group";
   const name = item.dataset.chatName || "Chat";
-  const targetUserId = item.dataset.userId ? Number(item.dataset.userId) : null;
+  const nextRoomId = item.dataset.roomId || null;
+  const nextEmail = item.dataset.email || null;
+
+  if (activeConversation.type === "personal" && activeConversation.roomId && activeConversation.roomId !== nextRoomId) {
+    leavePersonalRoom(activeConversation.roomId);
+  }
 
   setActiveChatItem(item);
   activeConversation = {
     type,
     name,
     subtitle: item.dataset.chatStatus || (type === "group" ? "12 members online" : "Direct messages"),
-    targetUserId,
-    room: type === "personal" ? getPersonalRoomKey(targetUserId) : null
+    roomId: type === "personal" ? nextRoomId : null,
+    email: type === "personal" ? nextEmail : null
   };
 
   updateConversationHeader();
@@ -317,8 +379,8 @@ function activateConversation(item) {
   }
 
   clearMessages();
-  renderPersonalMessages(activeConversation.room);
-  joinPersonalRoom(targetUserId);
+  renderPersonalMessages(activeConversation.roomId);
+  joinPersonalRoom(activeConversation.roomId);
 }
 
 chatForm.addEventListener("submit", async (e) => {
@@ -328,13 +390,14 @@ chatForm.addEventListener("submit", async (e) => {
   if (!text) return;
 
   if (activeConversation.type === "personal") {
-    if (!chatSocket?.connected || !activeConversation.targetUserId) {
+    if (!chatSocket?.connected || !activeConversation.roomId) {
       console.error("Socket is not connected for personal messaging");
       return;
     }
 
     chatSocket.emit("new_message", {
-      targetUserId: activeConversation.targetUserId,
+      roomId: activeConversation.roomId,
+      recipientEmail: activeConversation.email,
       message: text
     }, (response) => {
       if (!response?.ok) {
@@ -342,6 +405,10 @@ chatForm.addEventListener("submit", async (e) => {
         return;
       }
 
+      const roomMessages = personalMessagesByRoom.get(activeConversation.roomId) || [];
+      roomMessages.push(response.data);
+      personalMessagesByRoom.set(activeConversation.roomId, roomMessages);
+      appendMessage(response.data);
       messageInput.value = "";
     });
 
@@ -400,10 +467,29 @@ window.addEventListener("DOMContentLoaded", () => {
   clearMessages();
   loadMessages();
   connectWebSocket();
-  chatItems.forEach((item) => {
+  baseChatItems.forEach((item) => {
     item.addEventListener("click", () => {
       activateConversation(item);
     });
+  });
+  personalChatForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+
+    const email = normalizeEmail(roomEmailInput.value);
+    const currentUser = getStoredUser();
+
+    if (!email || !currentUser?.email) {
+      return;
+    }
+
+    if (email === normalizeEmail(currentUser.email)) {
+      console.error("You cannot create a personal room with your own email");
+      return;
+    }
+
+    const personalItem = ensurePersonalChatItem(email);
+    activateConversation(personalItem);
+    roomEmailInput.value = "";
   });
   messageInput.focus();
 });

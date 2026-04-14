@@ -28,7 +28,6 @@ function initializeSocketServer(httpServer, app) {
     });
 
     registerPersonalChatHandlers({
-      io,
       socket
     });
 

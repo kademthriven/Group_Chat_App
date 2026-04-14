@@ -33,7 +33,16 @@
       </div>
 
       <div class="sidebar-search">
-        <input type="text" class="form-control" placeholder="Search conversations" />
+        <form id="personalChatForm" class="personal-chat-form">
+          <input
+            type="email"
+            id="roomEmailInput"
+            class="form-control"
+            placeholder="Enter user email to start a DM"
+            autocomplete="off"
+          />
+          <button type="submit" class="btn btn-primary w-100 mt-3">Join Room</button>
+        </form>
       </div>
 
       <div class="chat-list">
@@ -46,21 +55,7 @@
           <span class="chat-badge">12</span>
         </div>
 
-        <div class="chat-item" data-chat-type="personal" data-user-id="2" data-chat-name="Team Chat" data-chat-status="Direct conversation with Team Chat">
-          <div class="avatar">T</div>
-          <div class="chat-info">
-            <h6 class="mb-1">Team Chat</h6>
-            <small>Sprint planning and feature reviews</small>
-          </div>
-        </div>
-
-        <div class="chat-item" data-chat-type="personal" data-user-id="3" data-chat-name="UI Lab" data-chat-status="Direct conversation with UI Lab">
-          <div class="avatar alt">U</div>
-          <div class="chat-info">
-            <h6 class="mb-1">UI Lab</h6>
-            <small>Mockups, motion, and polish work</small>
-          </div>
-        </div>
+        <div id="dynamicPersonalChats"></div>
       </div>
     </aside>
 
