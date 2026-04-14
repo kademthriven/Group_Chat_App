@@ -26,14 +26,22 @@ let server;
 
 process.on("uncaughtException", (error) => {
   console.error("Uncaught exception:", error);
+  // Don't exit on uncaught exception
 });
 
 process.on("unhandledRejection", (reason) => {
   console.error("Unhandled promise rejection:", reason);
+  // Don't exit on unhandled rejection
 });
 
 process.on("exit", (code) => {
   console.log(`Node process ${process.pid} exiting with code ${code}`);
+});
+
+// Global error handler middleware
+app.use((err, req, res, next) => {
+  console.error("Express error:", err);
+  res.status(500).json({ error: "Internal server error" });
 });
 
 process.on("SIGINT", () => {
@@ -61,7 +69,16 @@ db.sequelize
     server.on("close", () => {
       console.log(`Server instance for PID ${process.pid} was closed`);
     });
+
+    server.on("error", (err) => {
+      console.error("Server error:", err);
+    });
   })
   .catch((err) => {
     console.error("Database connection failed:", err);
+    // Don't exit - retry or keep app running
+    setTimeout(() => {
+      console.log("Retrying database connection...");
+      process.exit(1);
+    }, 5000);
   });
