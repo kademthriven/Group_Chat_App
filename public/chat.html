@@ -37,7 +37,7 @@
       </div>
 
       <div class="chat-list">
-        <div class="chat-item active">
+        <div class="chat-item active" data-chat-type="group" data-chat-name="General Group">
           <div class="avatar">G</div>
           <div class="chat-info">
             <h6 class="mb-1">General Group</h6>
@@ -46,7 +46,7 @@
           <span class="chat-badge">12</span>
         </div>
 
-        <div class="chat-item">
+        <div class="chat-item" data-chat-type="personal" data-user-id="2" data-chat-name="Team Chat" data-chat-status="Direct conversation with Team Chat">
           <div class="avatar">T</div>
           <div class="chat-info">
             <h6 class="mb-1">Team Chat</h6>
@@ -54,7 +54,7 @@
           </div>
         </div>
 
-        <div class="chat-item">
+        <div class="chat-item" data-chat-type="personal" data-user-id="3" data-chat-name="UI Lab" data-chat-status="Direct conversation with UI Lab">
           <div class="avatar alt">U</div>
           <div class="chat-info">
             <h6 class="mb-1">UI Lab</h6>
@@ -69,8 +69,8 @@
         <div class="d-flex align-items-center gap-3">
           <div class="avatar large">G</div>
           <div>
-            <h5 class="mb-0">General Group</h5>
-            <small class="text-muted">12 members online</small>
+            <h5 class="mb-0" id="chatTitle">General Group</h5>
+            <small class="text-muted" id="chatSubtitle">12 members online</small>
           </div>
         </div>
         <div class="header-actions">
@@ -120,7 +120,7 @@
             placeholder="Write a message to the group"
             autocomplete="off"
           />
-          <button type="submit" class="btn btn-primary px-4">Send</button>
+          <button type="submit" class="btn btn-primary px-4" id="sendButton">Send</button>
         </form>
       </div>
     </main>

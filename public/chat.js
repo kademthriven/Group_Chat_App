@@ -4,17 +4,26 @@ const chatMessages = document.getElementById("chatMessages");
 const headerUserName = document.getElementById("headerUserName");
 const sidebarUserPill = document.getElementById("sidebarUserPill");
 const logoutButton = document.getElementById("logoutButton");
+const chatTitle = document.getElementById("chatTitle");
+const chatSubtitle = document.getElementById("chatSubtitle");
+const chatItems = Array.from(document.querySelectorAll(".chat-item"));
 const renderedMessageIds = new Set();
-const pollingIntervalMs = 15000;
-const socketServerUrl = "http://localhost:3000";
+const socketServerUrl = window.location.origin;
 const dateDividerMarkup = `
   <div class="date-divider">
     <span>Today</span>
   </div>
 `;
 let chatSocket;
-let pollingIntervalId;
 let reconnectTimeoutId;
+let activeConversation = {
+  type: "group",
+  name: "General Group",
+  subtitle: "12 members online",
+  targetUserId: null,
+  room: null
+};
+const personalMessagesByRoom = new Map();
 
 function getStoredUser() {
   const rawUser = localStorage.getItem("chatUser");
@@ -75,6 +84,16 @@ function clearMessages() {
   renderedMessageIds.clear();
 }
 
+function getPersonalRoomKey(targetUserId) {
+  const currentUser = getStoredUser();
+
+  if (!currentUser || !targetUserId) {
+    return null;
+  }
+
+  return [Number(currentUser.id), Number(targetUserId)].sort((a, b) => a - b).join(":");
+}
+
 function formatMessageTime(dateValue) {
   const date = dateValue ? new Date(dateValue) : new Date();
   return Number.isNaN(date.getTime()) ? getCurrentTime() : date.toLocaleTimeString([], {
@@ -113,7 +132,8 @@ function createMessageElement({ text, type = "sent", senderName = "", createdAt 
 }
 
 function appendMessage(message) {
-  const messageId = String(message.id || "");
+  const fallbackId = `${message.userId || "user"}-${message.createdAt || Date.now()}-${message.message || ""}`;
+  const messageId = String(message.id || fallbackId);
 
   if (messageId && renderedMessageIds.has(messageId)) {
     return;
@@ -147,6 +167,14 @@ function renderMessages(messages) {
   });
 }
 
+function renderPersonalMessages(room) {
+  clearMessages();
+
+  (personalMessagesByRoom.get(room) || []).forEach((message) => {
+    appendMessage(message);
+  });
+}
+
 async function loadMessages() {
   try {
     const res = await fetch("/messages", {
@@ -164,25 +192,6 @@ async function loadMessages() {
   } catch (error) {
     console.error("Error loading messages:", error);
   }
-}
-
-function startPolling() {
-  if (pollingIntervalId) {
-    return;
-  }
-
-  pollingIntervalId = window.setInterval(() => {
-    loadMessages();
-  }, pollingIntervalMs);
-}
-
-function stopPolling() {
-  if (!pollingIntervalId) {
-    return;
-  }
-
-  window.clearInterval(pollingIntervalId);
-  pollingIntervalId = null;
 }
 
 function scheduleReconnect() {
@@ -214,12 +223,30 @@ function connectWebSocket() {
   });
 
   chatSocket.on("connect", () => {
-    stopPolling();
+    if (activeConversation.targetUserId) {
+      joinPersonalRoom(activeConversation.targetUserId);
+    }
   });
 
   chatSocket.on("message:created", (data) => {
-    if (data?.payload) {
+    if (data?.payload && activeConversation.type === "group") {
       appendMessage(data.payload);
+    }
+  });
+
+  chatSocket.on("personal_message", (data) => {
+    const message = data?.payload;
+
+    if (!message?.room) {
+      return;
+    }
+
+    const roomMessages = personalMessagesByRoom.get(message.room) || [];
+    roomMessages.push(message);
+    personalMessagesByRoom.set(message.room, roomMessages);
+
+    if (activeConversation.type === "personal" && activeConversation.room === message.room) {
+      appendMessage(message);
     }
   });
 
@@ -228,15 +255,70 @@ function connectWebSocket() {
       return;
     }
 
-    startPolling();
+    if (activeConversation.type === "group") {
+      loadMessages();
+    }
+
     scheduleReconnect();
   });
 
   chatSocket.on("connect_error", (error) => {
     console.error("Socket.IO connection error:", error);
-    startPolling();
     scheduleReconnect();
   });
+}
+
+function updateConversationHeader() {
+  chatTitle.textContent = activeConversation.name;
+  chatSubtitle.textContent = activeConversation.subtitle;
+}
+
+function setActiveChatItem(nextItem) {
+  chatItems.forEach((item) => {
+    item.classList.toggle("active", item === nextItem);
+  });
+}
+
+function joinPersonalRoom(targetUserId) {
+  if (!chatSocket?.connected) {
+    return;
+  }
+
+  chatSocket.emit("join_room", { targetUserId }, (response) => {
+    if (!response?.ok) {
+      console.error(response?.message || "Unable to join personal room");
+      return;
+    }
+
+    activeConversation.room = response.room;
+    renderPersonalMessages(response.room);
+  });
+}
+
+function activateConversation(item) {
+  const type = item.dataset.chatType || "group";
+  const name = item.dataset.chatName || "Chat";
+  const targetUserId = item.dataset.userId ? Number(item.dataset.userId) : null;
+
+  setActiveChatItem(item);
+  activeConversation = {
+    type,
+    name,
+    subtitle: item.dataset.chatStatus || (type === "group" ? "12 members online" : "Direct messages"),
+    targetUserId,
+    room: type === "personal" ? getPersonalRoomKey(targetUserId) : null
+  };
+
+  updateConversationHeader();
+
+  if (type === "group") {
+    loadMessages();
+    return;
+  }
+
+  clearMessages();
+  renderPersonalMessages(activeConversation.room);
+  joinPersonalRoom(targetUserId);
 }
 
 chatForm.addEventListener("submit", async (e) => {
@@ -244,6 +326,27 @@ chatForm.addEventListener("submit", async (e) => {
 
   const text = messageInput.value.trim();
   if (!text) return;
+
+  if (activeConversation.type === "personal") {
+    if (!chatSocket?.connected || !activeConversation.targetUserId) {
+      console.error("Socket is not connected for personal messaging");
+      return;
+    }
+
+    chatSocket.emit("new_message", {
+      targetUserId: activeConversation.targetUserId,
+      message: text
+    }, (response) => {
+      if (!response?.ok) {
+        console.error(response?.message || "Unable to send personal message");
+        return;
+      }
+
+      messageInput.value = "";
+    });
+
+    return;
+  }
 
   try {
     const res = await fetch("/messages", {
@@ -293,9 +396,14 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 
   applyUserProfile();
+  updateConversationHeader();
   clearMessages();
   loadMessages();
-  startPolling();
   connectWebSocket();
+  chatItems.forEach((item) => {
+    item.addEventListener("click", () => {
+      activateConversation(item);
+    });
+  });
   messageInput.focus();
 });

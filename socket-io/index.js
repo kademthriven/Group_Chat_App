@@ -1,6 +1,7 @@
 const { Server } = require("socket.io");
 const { socketAuth } = require("./middleware");
 const { registerChatHandlers } = require("./handlers/chat");
+const { registerPersonalChatHandlers } = require("./handlers/personalChat");
 
 function initializeSocketServer(httpServer, app) {
   const io = new Server(httpServer, {
@@ -24,6 +25,11 @@ function initializeSocketServer(httpServer, app) {
     registerChatHandlers({
       socket,
       app
+    });
+
+    registerPersonalChatHandlers({
+      io,
+      socket
     });
 
     socket.on("disconnect", (reason) => {
