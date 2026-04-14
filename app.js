@@ -3,7 +3,7 @@ const http = require("http");
 const path = require("path");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
-const { WebSocketServer, WebSocket } = require("ws");
+const { Server } = require("socket.io");
 require("dotenv").config();
 
 const authRoutes = require("./routes/authRoutes");
@@ -12,22 +12,20 @@ const db = require("./models");
 
 const app = express();
 const httpServer = http.createServer(app);
-const wss = new WebSocketServer({ noServer: true });
+const io = new Server(httpServer, {
+  cors: {
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST"]
+  }
+});
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.locals.broadcastMessage = (message) => {
-  const payload = JSON.stringify({
-    type: "message.created",
+  io.emit("message:created", {
     payload: message
-  });
-
-  wss.clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(payload);
-    }
   });
 };
 
@@ -42,49 +40,32 @@ app.get("/", (req, res) => {
 const PORT = process.env.PORT || 3000;
 let server;
 
-wss.on("connection", (socket, request) => {
-  socket.user = request.user;
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
 
-  socket.send(
-    JSON.stringify({
-      type: "connection.ready",
-      payload: {
-        userId: request.user.id
-      }
-    })
-  );
+  if (!token) {
+    next(new Error("Authentication token is required"));
+    return;
+  }
 
-  socket.on("error", (error) => {
-    console.error("WebSocket error:", error);
-  });
+  try {
+    socket.user = jwt.verify(token, process.env.JWT_SECRET);
+    next();
+  } catch (error) {
+    next(new Error("Invalid or expired token"));
+  }
 });
 
-httpServer.on("upgrade", (request, socket, head) => {
-  try {
-    const requestUrl = new URL(request.url, `http://${request.headers.host}`);
+io.on("connection", (socket) => {
+  const { user } = socket;
 
-    if (requestUrl.pathname !== "/ws") {
-      socket.destroy();
-      return;
-    }
+  socket.emit("connection.ready", {
+    userId: user.id
+  });
 
-    const token = requestUrl.searchParams.get("token");
-
-    if (!token) {
-      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
-      socket.destroy();
-      return;
-    }
-
-    request.user = jwt.verify(token, process.env.JWT_SECRET);
-
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      wss.emit("connection", ws, request);
-    });
-  } catch (error) {
-    socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
-    socket.destroy();
-  }
+  socket.on("error", (error) => {
+    console.error("Socket.IO error:", error);
+  });
 });
 
 process.on("uncaughtException", (error) => {
@@ -110,8 +91,7 @@ app.use((err, req, res, next) => {
 process.on("SIGINT", () => {
   console.log(`Received SIGINT. Shutting down server process ${process.pid}`);
 
-  wss.clients.forEach((client) => client.close());
-  wss.close();
+  io.close();
 
   if (server) {
     server.close(() => {

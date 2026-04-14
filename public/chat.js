@@ -6,6 +6,7 @@ const sidebarUserPill = document.getElementById("sidebarUserPill");
 const logoutButton = document.getElementById("logoutButton");
 const renderedMessageIds = new Set();
 const pollingIntervalMs = 15000;
+const socketServerUrl = "http://localhost:3000";
 const dateDividerMarkup = `
   <div class="date-divider">
     <span>Today</span>
@@ -165,11 +166,6 @@ async function loadMessages() {
   }
 }
 
-function buildWebSocketUrl() {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(getToken())}`;
-}
-
 function startPolling() {
   if (pollingIntervalId) {
     return;
@@ -205,29 +201,29 @@ function connectWebSocket() {
     return;
   }
 
-  if (chatSocket && (chatSocket.readyState === WebSocket.OPEN || chatSocket.readyState === WebSocket.CONNECTING)) {
+  if (chatSocket?.connected || chatSocket?.active) {
     return;
   }
 
-  chatSocket = new WebSocket(buildWebSocketUrl());
+  chatSocket = window.io(socketServerUrl, {
+    auth: {
+      token: getToken()
+    },
+    autoConnect: true,
+    reconnection: false
+  });
 
-  chatSocket.addEventListener("open", () => {
+  chatSocket.on("connect", () => {
     stopPolling();
   });
 
-  chatSocket.addEventListener("message", (event) => {
-    try {
-      const data = JSON.parse(event.data);
-
-      if (data.type === "message.created" && data.payload) {
-        appendMessage(data.payload);
-      }
-    } catch (error) {
-      console.error("Error processing live message:", error);
+  chatSocket.on("message:created", (data) => {
+    if (data?.payload) {
+      appendMessage(data.payload);
     }
   });
 
-  chatSocket.addEventListener("close", () => {
+  chatSocket.on("disconnect", () => {
     if (!getToken()) {
       return;
     }
@@ -236,8 +232,10 @@ function connectWebSocket() {
     scheduleReconnect();
   });
 
-  chatSocket.addEventListener("error", (error) => {
-    console.error("WebSocket connection error:", error);
+  chatSocket.on("connect_error", (error) => {
+    console.error("Socket.IO connection error:", error);
+    startPolling();
+    scheduleReconnect();
   });
 }
 
@@ -263,7 +261,7 @@ chatForm.addEventListener("submit", async (e) => {
       throw new Error(data.message || "Unable to save message");
     }
 
-    if (!chatSocket || chatSocket.readyState !== WebSocket.OPEN) {
+    if (!chatSocket?.connected) {
       appendMessage(data.data);
     }
 
@@ -283,7 +281,7 @@ logoutButton.addEventListener("click", () => {
   }
 
   if (chatSocket) {
-    chatSocket.close();
+    chatSocket.disconnect();
   }
 
   redirectToLogin();
