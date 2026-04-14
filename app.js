@@ -2,12 +2,12 @@ const express = require("express");
 const http = require("http");
 const path = require("path");
 const cors = require("cors");
-const jwt = require("jsonwebtoken");
 const { Server } = require("socket.io");
 require("dotenv").config();
 
 const authRoutes = require("./routes/authRoutes");
 const messageRoutes = require("./routes/messageRoutes");
+const socketAuth = require("./middleware/socketAuth");
 const db = require("./models");
 const { Message, User } = db;
 
@@ -68,21 +68,7 @@ app.get("/", (req, res) => {
 const PORT = process.env.PORT || 3000;
 let server;
 
-io.use((socket, next) => {
-  const token = socket.handshake.auth?.token;
-
-  if (!token) {
-    next(new Error("Authentication token is required"));
-    return;
-  }
-
-  try {
-    socket.user = jwt.verify(token, process.env.JWT_SECRET);
-    next();
-  } catch (error) {
-    next(new Error("Invalid or expired token"));
-  }
-});
+io.use(socketAuth);
 
 io.on("connection", (socket) => {
   const { user } = socket;
@@ -90,7 +76,14 @@ io.on("connection", (socket) => {
   console.log(`Socket connected for user ${user.id}`);
 
   socket.emit("connection.ready", {
-    userId: user.id
+    user
+  });
+
+  socket.on("auth:me", (callback) => {
+    callback?.({
+      ok: true,
+      user: socket.data.user
+    });
   });
 
   socket.on("message:create", async (payload = {}, callback) => {
