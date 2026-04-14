@@ -9,6 +9,7 @@ require("dotenv").config();
 const authRoutes = require("./routes/authRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const db = require("./models");
+const { Message, User } = db;
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -23,11 +24,38 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+async function persistMessage({ userId, message }) {
+  const trimmedMessage = message?.trim();
+
+  if (!trimmedMessage) {
+    throw new Error("Message is required");
+  }
+
+  const newMessage = await Message.create({
+    userId,
+    message: trimmedMessage
+  });
+
+  const savedMessage = await Message.findByPk(newMessage.id, {
+    include: [
+      {
+        model: User,
+        as: "sender",
+        attributes: ["id", "name"]
+      }
+    ]
+  });
+
+  return savedMessage.toJSON();
+}
+
 app.locals.broadcastMessage = (message) => {
   io.emit("message:created", {
     payload: message
   });
 };
+
+app.locals.persistMessage = persistMessage;
 
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/user", authRoutes);
@@ -59,8 +87,34 @@ io.use((socket, next) => {
 io.on("connection", (socket) => {
   const { user } = socket;
 
+  console.log(`Socket connected for user ${user.id}`);
+
   socket.emit("connection.ready", {
     userId: user.id
+  });
+
+  socket.on("message:create", async (payload = {}, callback) => {
+    try {
+      const savedMessage = await persistMessage({
+        userId: user.id,
+        message: payload.message
+      });
+
+      app.locals.broadcastMessage(savedMessage);
+      callback?.({
+        ok: true,
+        data: savedMessage
+      });
+    } catch (error) {
+      callback?.({
+        ok: false,
+        message: error.message || "Unable to save message"
+      });
+    }
+  });
+
+  socket.on("disconnect", (reason) => {
+    console.log(`Socket disconnected for user ${user.id}: ${reason}`);
   });
 
   socket.on("error", (error) => {

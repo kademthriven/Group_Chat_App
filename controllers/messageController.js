@@ -24,38 +24,22 @@ exports.getMessages = async (req, res) => {
 
 exports.createMessage = async (req, res) => {
   try {
-    const { message } = req.body;
-
-    if (!message || !message.trim()) {
-      return res.status(400).json({
-        message: "Message is required"
-      });
-    }
-
-    const newMessage = await Message.create({
+    const savedMessage = await req.app.locals.persistMessage({
       userId: req.user.id,
-      message: message.trim()
+      message: req.body.message
     });
 
-    const savedMessage = await Message.findByPk(newMessage.id, {
-      include: [
-        {
-          model: User,
-          as: "sender",
-          attributes: ["id", "name"]
-        }
-      ]
-    });
-
-    req.app.locals.broadcastMessage?.(savedMessage.toJSON());
+    req.app.locals.broadcastMessage?.(savedMessage);
 
     return res.status(201).json({
       message: "Message stored successfully",
       data: savedMessage
     });
   } catch (error) {
-    return res.status(500).json({
-      message: "Unable to save message",
+    const statusCode = error.message === "Message is required" ? 400 : 500;
+
+    return res.status(statusCode).json({
+      message: statusCode === 400 ? error.message : "Unable to save message",
       error: error.message
     });
   }
