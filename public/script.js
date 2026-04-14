@@ -4,6 +4,15 @@ const showLogin = document.getElementById("show-login");
 const showSignup = document.getElementById("show-signup");
 const formTitle = document.getElementById("form-title");
 const messageBox = document.getElementById("message");
+const authInputs = document.querySelectorAll("input");
+
+function redirectToChat() {
+  window.location.href = "/chat.html";
+}
+
+function getStoredToken() {
+  return localStorage.getItem("token");
+}
 
 function showMessage(text, type) {
   messageBox.classList.remove("d-none", "alert-success", "alert-danger");
@@ -15,6 +24,31 @@ function clearMessage() {
   messageBox.classList.add("d-none");
   messageBox.textContent = "";
 }
+
+function prepareInputFields() {
+  authInputs.forEach((input) => {
+    input.value = "";
+    input.setAttribute("data-lpignore", "true");
+
+    if (input.hasAttribute("readonly")) {
+      const unlockInput = () => {
+        input.removeAttribute("readonly");
+      };
+
+      input.addEventListener("focus", unlockInput, { once: true });
+      input.addEventListener("pointerdown", unlockInput, { once: true });
+    }
+  });
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  if (getStoredToken()) {
+    redirectToChat();
+    return;
+  }
+
+  prepareInputFields();
+});
 
 showLogin.addEventListener("click", () => {
   signupForm.classList.add("d-none");
@@ -97,11 +131,10 @@ loginForm.addEventListener("submit", async (e) => {
 
     if (res.ok) {
       localStorage.setItem("token", data.token);
+      localStorage.setItem("chatUser", JSON.stringify(data.user));
       showMessage(data.message || "Login successful", "success");
       loginForm.reset();
-
-      // Optional redirect after login
-      // window.location.href = "/chat.html";
+      setTimeout(redirectToChat, 500);
     } else {
       showMessage(data.message || "Login failed", "error");
     }

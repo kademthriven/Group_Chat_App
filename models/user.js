@@ -4,6 +4,13 @@ const { Model } = require("sequelize");
 module.exports = (sequelize, DataTypes) => {
   class User extends Model {}
 
+  User.associate = (models) => {
+    User.hasMany(models.Message, {
+      foreignKey: "userId",
+      as: "messages"
+    });
+  };
+
   User.init(
     {
       name: {
