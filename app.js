@@ -2,23 +2,16 @@ const express = require("express");
 const http = require("http");
 const path = require("path");
 const cors = require("cors");
-const { Server } = require("socket.io");
 require("dotenv").config();
 
 const authRoutes = require("./routes/authRoutes");
 const messageRoutes = require("./routes/messageRoutes");
-const socketAuth = require("./middleware/socketAuth");
+const initializeSocketServer = require("./socket-io");
 const db = require("./models");
 const { Message, User } = db;
 
 const app = express();
 const httpServer = http.createServer(app);
-const io = new Server(httpServer, {
-  cors: {
-    origin: "http://localhost:3000",
-    methods: ["GET", "POST"]
-  }
-});
 
 app.use(cors());
 app.use(express.json());
@@ -49,12 +42,6 @@ async function persistMessage({ userId, message }) {
   return savedMessage.toJSON();
 }
 
-app.locals.broadcastMessage = (message) => {
-  io.emit("message:created", {
-    payload: message
-  });
-};
-
 app.locals.persistMessage = persistMessage;
 
 app.use(express.static(path.join(__dirname, "public")));
@@ -67,53 +54,7 @@ app.get("/", (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 let server;
-
-io.use(socketAuth);
-
-io.on("connection", (socket) => {
-  const { user } = socket;
-
-  console.log(`Socket connected for user ${user.id}`);
-
-  socket.emit("connection.ready", {
-    user
-  });
-
-  socket.on("auth:me", (callback) => {
-    callback?.({
-      ok: true,
-      user: socket.data.user
-    });
-  });
-
-  socket.on("message:create", async (payload = {}, callback) => {
-    try {
-      const savedMessage = await persistMessage({
-        userId: user.id,
-        message: payload.message
-      });
-
-      app.locals.broadcastMessage(savedMessage);
-      callback?.({
-        ok: true,
-        data: savedMessage
-      });
-    } catch (error) {
-      callback?.({
-        ok: false,
-        message: error.message || "Unable to save message"
-      });
-    }
-  });
-
-  socket.on("disconnect", (reason) => {
-    console.log(`Socket disconnected for user ${user.id}: ${reason}`);
-  });
-
-  socket.on("error", (error) => {
-    console.error("Socket.IO error:", error);
-  });
-});
+const io = initializeSocketServer(httpServer, app);
 
 process.on("uncaughtException", (error) => {
   console.error("Uncaught exception:", error);
