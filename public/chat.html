@@ -33,29 +33,61 @@
       </div>
 
       <div class="sidebar-search">
-        <form id="personalChatForm" class="personal-chat-form">
-          <input
-            type="email"
-            id="roomEmailInput"
-            class="form-control"
-            placeholder="Enter user email to start a DM"
-            autocomplete="off"
-          />
-          <button type="submit" class="btn btn-primary w-100 mt-3">Join Room</button>
-        </form>
+        <div class="sidebar-stack">
+          <div>
+            <p class="sidebar-section-title">Create Group</p>
+            <form id="groupCreateForm" class="personal-chat-form">
+              <input
+                type="text"
+                id="groupNameInput"
+                class="form-control"
+                placeholder="Create a new group"
+                autocomplete="off"
+              />
+              <button type="submit" class="btn btn-primary w-100 mt-3">Create Group</button>
+            </form>
+          </div>
+
+          <div>
+            <p class="sidebar-section-title">Join Group</p>
+            <form id="groupJoinForm" class="personal-chat-form">
+              <input
+                type="text"
+                id="groupCodeInput"
+                class="form-control"
+                placeholder="Enter group code"
+                autocomplete="off"
+              />
+              <button type="submit" class="btn btn-outline-light w-100 mt-3">Join by Code</button>
+            </form>
+          </div>
+
+          <div>
+            <p class="sidebar-section-title">Direct Message</p>
+            <form id="personalChatForm" class="personal-chat-form">
+              <input
+                type="email"
+                id="roomEmailInput"
+                class="form-control"
+                placeholder="Enter user email to start a DM"
+                autocomplete="off"
+              />
+              <button type="submit" class="btn btn-primary w-100 mt-3">Start DM</button>
+            </form>
+          </div>
+        </div>
       </div>
 
       <div class="chat-list">
-        <div class="chat-item active" data-chat-type="group" data-chat-name="General Group">
-          <div class="avatar">G</div>
-          <div class="chat-info">
-            <h6 class="mb-1">General Group</h6>
-            <small>Design ideas, team notes, quick updates</small>
-          </div>
-          <span class="chat-badge">12</span>
+        <div class="chat-list-section">
+          <p class="sidebar-section-title px-2">Groups</p>
+          <div id="dynamicGroupChats"></div>
         </div>
 
-        <div id="dynamicPersonalChats"></div>
+        <div class="chat-list-section">
+          <p class="sidebar-section-title px-2">Direct Messages</p>
+          <div id="dynamicPersonalChats"></div>
+        </div>
       </div>
     </aside>
 
@@ -65,7 +97,7 @@
           <div class="avatar large">G</div>
           <div>
             <h5 class="mb-0" id="chatTitle">General Group</h5>
-            <small class="text-muted" id="chatSubtitle">12 members online</small>
+            <small class="text-muted" id="chatSubtitle">Join a group conversation or start a DM</small>
           </div>
         </div>
         <div class="header-actions">
@@ -112,7 +144,7 @@
             type="text"
             id="messageInput"
             class="form-control"
-            placeholder="Write a message to the group"
+            placeholder="Write a message"
             autocomplete="off"
           />
           <button type="submit" class="btn btn-primary px-4" id="sendButton">Send</button>

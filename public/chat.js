@@ -8,6 +8,11 @@ const chatTitle = document.getElementById("chatTitle");
 const chatSubtitle = document.getElementById("chatSubtitle");
 const personalChatForm = document.getElementById("personalChatForm");
 const roomEmailInput = document.getElementById("roomEmailInput");
+const groupCreateForm = document.getElementById("groupCreateForm");
+const groupNameInput = document.getElementById("groupNameInput");
+const groupJoinForm = document.getElementById("groupJoinForm");
+const groupCodeInput = document.getElementById("groupCodeInput");
+const dynamicGroupChats = document.getElementById("dynamicGroupChats");
 const dynamicPersonalChats = document.getElementById("dynamicPersonalChats");
 const renderedMessageIds = new Set();
 const socketServerUrl = window.location.origin;
@@ -16,17 +21,21 @@ const dateDividerMarkup = `
     <span>Today</span>
   </div>
 `;
+
 let chatSocket;
 let reconnectTimeoutId;
+
 let activeConversation = {
   type: "group",
   name: "General Group",
-  subtitle: "12 members online",
+  subtitle: "Code GENERAL - team-wide chat",
+  groupId: "general-group",
   roomId: null,
   email: null
 };
+
+const groupMessagesById = new Map();
 const personalMessagesByRoom = new Map();
-const baseChatItems = Array.from(document.querySelectorAll(".chat-item"));
 
 function getStoredUser() {
   const rawUser = localStorage.getItem("chatUser");
@@ -43,48 +52,21 @@ function getStoredUser() {
   }
 }
 
+function getToken() {
+  return localStorage.getItem("token");
+}
+
 function redirectToLogin() {
   window.location.href = "/";
 }
 
 function ensureAuthenticated() {
-  const token = localStorage.getItem("token");
-
-  if (!token) {
+  if (!getToken()) {
     redirectToLogin();
     return false;
   }
 
   return true;
-}
-
-function getCurrentTime() {
-  const now = new Date();
-  return now.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
-
-function getToken() {
-  return localStorage.getItem("token");
-}
-
-function scrollToBottom() {
-  chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-function applyUserProfile() {
-  const user = getStoredUser();
-  const displayName = user?.name || "Guest";
-
-  headerUserName.textContent = displayName;
-  sidebarUserPill.textContent = displayName;
-}
-
-function clearMessages() {
-  chatMessages.innerHTML = dateDividerMarkup;
-  renderedMessageIds.clear();
 }
 
 function normalizeEmail(email = "") {
@@ -104,32 +86,62 @@ function generatePersonalRoomId(firstEmail, secondEmail) {
 }
 
 function getPersonalRoomKey(targetEmail) {
-  const currentUser = getStoredUser();
-  return generatePersonalRoomId(currentUser?.email, targetEmail);
+  return generatePersonalRoomId(getStoredUser()?.email, targetEmail);
 }
 
-async function validatePersonalChatEmail(email) {
-  const response = await fetch(`/user/lookup?email=${encodeURIComponent(email)}`, {
-    headers: {
-      Authorization: `Bearer ${getToken()}`
-    }
-  });
+function clearMessages() {
+  chatMessages.innerHTML = dateDividerMarkup;
+  renderedMessageIds.clear();
+}
 
-  const data = await response.json().catch(() => ({}));
+function scrollToBottom() {
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
 
-  if (!response.ok) {
-    throw new Error(data.message || "Unable to verify the email address");
+function applyUserProfile() {
+  const user = getStoredUser();
+  const displayName = user?.name || "Guest";
+
+  headerUserName.textContent = displayName;
+  sidebarUserPill.textContent = displayName;
+}
+
+function updateConversationHeader() {
+  chatTitle.textContent = activeConversation.name;
+  chatSubtitle.textContent = activeConversation.subtitle;
+}
+
+function getGroupSubtitle(group) {
+  if (!group) {
+    return "Group conversation";
   }
 
-  return data.user;
+  return `Code ${group.code} - ${group.memberCount} members, ${group.onlineCount} online`;
+}
+
+function getCurrentTime() {
+  return new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }
 
 function formatMessageTime(dateValue) {
   const date = dateValue ? new Date(dateValue) : new Date();
-  return Number.isNaN(date.getTime()) ? getCurrentTime() : date.toLocaleTimeString([], {
+
+  if (Number.isNaN(date.getTime())) {
+    return getCurrentTime();
+  }
+
+  return date.toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit"
   });
+}
+
+function getMessageType(messageUserId) {
+  const user = getStoredUser();
+  return user && Number(user.id) === Number(messageUserId) ? "sent" : "received";
 }
 
 function createMessageElement({ text, type = "sent", senderName = "", createdAt }) {
@@ -140,10 +152,10 @@ function createMessageElement({ text, type = "sent", senderName = "", createdAt 
   bubble.className = "message-bubble";
 
   if (type === "received" && senderName) {
-    const messageSender = document.createElement("div");
-    messageSender.className = "message-sender";
-    messageSender.textContent = senderName;
-    bubble.appendChild(messageSender);
+    const sender = document.createElement("div");
+    sender.className = "message-sender";
+    sender.textContent = senderName;
+    bubble.appendChild(sender);
   }
 
   const messageText = document.createElement("div");
@@ -165,13 +177,11 @@ function appendMessage(message) {
   const fallbackId = `${message.userId || "user"}-${message.createdAt || Date.now()}-${message.message || ""}`;
   const messageId = String(message.id || fallbackId);
 
-  if (messageId && renderedMessageIds.has(messageId)) {
+  if (renderedMessageIds.has(messageId)) {
     return;
   }
 
-  if (messageId) {
-    renderedMessageIds.add(messageId);
-  }
+  renderedMessageIds.add(messageId);
 
   const messageElement = createMessageElement({
     text: message.message,
@@ -184,133 +194,132 @@ function appendMessage(message) {
   scrollToBottom();
 }
 
-function getMessageType(messageUserId) {
-  const user = getStoredUser();
-  return user && Number(user.id) === Number(messageUserId) ? "sent" : "received";
-}
-
 function renderMessages(messages) {
   clearMessages();
-
-  messages.forEach((message) => {
-    appendMessage(message);
-  });
+  messages.forEach((message) => appendMessage(message));
 }
 
-function renderPersonalMessages(room) {
-  clearMessages();
+async function apiRequest(url, options = {}) {
+  const headers = {
+    Authorization: `Bearer ${getToken()}`,
+    ...(options.headers || {})
+  };
 
-  (personalMessagesByRoom.get(room) || []).forEach((message) => {
-    appendMessage(message);
-  });
-}
-
-async function loadMessages() {
-  try {
-    const res = await fetch("/messages", {
-      headers: {
-        Authorization: `Bearer ${getToken()}`
-      }
-    });
-
-    if (!res.ok) {
-      throw new Error("Unable to load messages");
-    }
-
-    const data = await res.json();
-    renderMessages(data.messages || []);
-  } catch (error) {
-    console.error("Error loading messages:", error);
+  if (options.body && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
   }
+
+  const response = await fetch(url, {
+    ...options,
+    headers
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "Request failed");
+  }
+
+  return data;
 }
 
-function scheduleReconnect() {
-  if (reconnectTimeoutId) {
+async function loadGroups() {
+  const data = await apiRequest("/groups");
+  return data.groups || [];
+}
+
+async function loadGroupMessages(groupId) {
+  const data = await apiRequest(`/groups/${encodeURIComponent(groupId)}/messages`);
+  const messages = data.messages || [];
+  groupMessagesById.set(groupId, messages);
+  return messages;
+}
+
+async function createGroup(name) {
+  const data = await apiRequest("/groups", {
+    method: "POST",
+    body: JSON.stringify({ name })
+  });
+
+  return data.group;
+}
+
+async function joinGroupByCode(code) {
+  const data = await apiRequest("/groups/join", {
+    method: "POST",
+    body: JSON.stringify({ code })
+  });
+
+  return data.group;
+}
+
+async function validatePersonalChatEmail(email) {
+  const data = await apiRequest(`/user/lookup?email=${encodeURIComponent(email)}`);
+  return data.user;
+}
+
+function createGroupChatItem(group) {
+  const item = document.createElement("div");
+  item.className = "chat-item";
+  item.dataset.chatType = "group";
+  item.dataset.chatName = group.name;
+  item.dataset.chatStatus = getGroupSubtitle(group);
+  item.dataset.groupId = group.id;
+
+  item.innerHTML = `
+    <div class="avatar">${group.name.charAt(0).toUpperCase()}</div>
+    <div class="chat-info">
+      <h6 class="mb-1">${group.name}</h6>
+      <small>Group chat</small>
+    </div>
+    <div class="chat-meta">
+      <span class="chat-badge">${group.memberCount}</span>
+      <small class="text-muted">${group.onlineCount} online</small>
+    </div>
+  `;
+
+  item.addEventListener("click", () => {
+    activateConversation(item);
+  });
+
+  return item;
+}
+
+function updateGroupChatItem(group) {
+  const existingItem = dynamicGroupChats.querySelector(`[data-group-id="${group.id}"]`);
+
+  if (!existingItem) {
+    dynamicGroupChats.appendChild(createGroupChatItem(group));
     return;
   }
 
-  reconnectTimeoutId = window.setTimeout(() => {
-    reconnectTimeoutId = null;
-    connectWebSocket();
-  }, 3000);
-}
+  existingItem.dataset.chatName = group.name;
+  existingItem.dataset.chatStatus = getGroupSubtitle(group);
+  existingItem.querySelector(".chat-info h6").textContent = group.name;
+  existingItem.querySelector(".chat-badge").textContent = group.memberCount;
+  existingItem.querySelector(".chat-meta .text-muted").textContent = `${group.onlineCount} online`;
 
-function connectWebSocket() {
-  if (!getToken()) {
-    return;
+  if (activeConversation.type === "group" && activeConversation.groupId === group.id) {
+    activeConversation.name = group.name;
+    activeConversation.subtitle = existingItem.dataset.chatStatus;
+    updateConversationHeader();
   }
+}
 
-  if (chatSocket?.connected || chatSocket?.active) {
-    return;
+function renderGroupChatItems(groups) {
+  dynamicGroupChats.innerHTML = "";
+
+  groups.forEach((group) => {
+    dynamicGroupChats.appendChild(createGroupChatItem(group));
+  });
+
+  if (activeConversation.type === "group") {
+    const activeItem = dynamicGroupChats.querySelector(`[data-group-id="${activeConversation.groupId}"]`);
+
+    if (activeItem) {
+      activeItem.classList.add("active");
+    }
   }
-
-  chatSocket = window.io(socketServerUrl, {
-    auth: {
-      token: getToken()
-    },
-    autoConnect: true,
-    reconnection: false
-  });
-
-  chatSocket.on("connect", () => {
-    if (activeConversation.roomId && activeConversation.email) {
-      joinPersonalRoom(activeConversation.roomId, activeConversation.email);
-    }
-  });
-
-  chatSocket.on("message:created", (data) => {
-    if (data?.payload && activeConversation.type === "group") {
-      appendMessage(data.payload);
-    }
-  });
-
-  chatSocket.on("new_message", (data) => {
-    const message = data?.payload;
-
-    if (!message?.roomId) {
-      return;
-    }
-
-    const roomMessages = personalMessagesByRoom.get(message.roomId) || [];
-    roomMessages.push(message);
-    personalMessagesByRoom.set(message.roomId, roomMessages);
-
-    if (activeConversation.type === "personal" && activeConversation.roomId === message.roomId) {
-      appendMessage(message);
-    }
-  });
-
-  chatSocket.on("disconnect", () => {
-    if (!getToken()) {
-      return;
-    }
-
-    if (activeConversation.type === "group") {
-      loadMessages();
-    }
-
-    scheduleReconnect();
-  });
-
-  chatSocket.on("connect_error", (error) => {
-    console.error("Socket.IO connection error:", error);
-    scheduleReconnect();
-  });
-}
-
-function updateConversationHeader() {
-  chatTitle.textContent = activeConversation.name;
-  chatSubtitle.textContent = activeConversation.subtitle;
-}
-
-function getChatItems() {
-  return Array.from(document.querySelectorAll(".chat-item"));
-}
-
-function setActiveChatItem(nextItem) {
-  getChatItems().forEach((item) => {
-    item.classList.toggle("active", item === nextItem);
-  });
 }
 
 function createPersonalChatItem(email) {
@@ -350,6 +359,51 @@ function ensurePersonalChatItem(email) {
   return nextItem;
 }
 
+function getChatItems() {
+  return Array.from(document.querySelectorAll(".chat-item"));
+}
+
+function setActiveChatItem(nextItem) {
+  getChatItems().forEach((item) => {
+    item.classList.toggle("active", item === nextItem);
+  });
+}
+
+function scheduleReconnect() {
+  if (reconnectTimeoutId) {
+    return;
+  }
+
+  reconnectTimeoutId = window.setTimeout(() => {
+    reconnectTimeoutId = null;
+    connectWebSocket();
+  }, 3000);
+}
+
+function joinGroupRoom(groupId) {
+  if (!chatSocket?.connected || !groupId) {
+    return;
+  }
+
+  chatSocket.emit("group:join", { groupId }, (response) => {
+    if (!response?.ok) {
+      console.error(response?.message || "Unable to join group");
+      return;
+    }
+
+    activeConversation.groupId = response.group.id;
+    updateGroupChatItem(response.group);
+  });
+}
+
+function leaveGroupRoom(groupId) {
+  if (!chatSocket?.connected || !groupId) {
+    return;
+  }
+
+  chatSocket.emit("group:leave", { groupId });
+}
+
 function joinPersonalRoom(roomId, targetEmail) {
   if (!chatSocket?.connected || !roomId || !targetEmail) {
     return;
@@ -363,7 +417,6 @@ function joinPersonalRoom(roomId, targetEmail) {
 
     activeConversation.roomId = response.roomId;
     activeConversation.email = response.recipient?.email || targetEmail;
-    renderPersonalMessages(response.roomId);
   });
 }
 
@@ -375,21 +428,27 @@ function leavePersonalRoom(roomId) {
   chatSocket.emit("leave_room", { roomId });
 }
 
-function activateConversation(item) {
+async function activateConversation(item) {
   const type = item.dataset.chatType || "group";
-  const name = item.dataset.chatName || "Chat";
+  const nextGroupId = item.dataset.groupId || null;
   const nextRoomId = item.dataset.roomId || null;
   const nextEmail = item.dataset.email || null;
+
+  if (activeConversation.type === "group" && activeConversation.groupId && activeConversation.groupId !== nextGroupId) {
+    leaveGroupRoom(activeConversation.groupId);
+  }
 
   if (activeConversation.type === "personal" && activeConversation.roomId && activeConversation.roomId !== nextRoomId) {
     leavePersonalRoom(activeConversation.roomId);
   }
 
   setActiveChatItem(item);
+
   activeConversation = {
     type,
-    name,
-    subtitle: item.dataset.chatStatus || (type === "group" ? "12 members online" : "Direct messages"),
+    name: item.dataset.chatName || "Chat",
+    subtitle: item.dataset.chatStatus || "Conversation",
+    groupId: type === "group" ? nextGroupId : null,
     roomId: type === "personal" ? nextRoomId : null,
     email: type === "personal" ? nextEmail : null
   };
@@ -397,20 +456,127 @@ function activateConversation(item) {
   updateConversationHeader();
 
   if (type === "group") {
-    loadMessages();
+    const messages = groupMessagesById.get(activeConversation.groupId) || await loadGroupMessages(activeConversation.groupId);
+    renderMessages(messages);
+    joinGroupRoom(activeConversation.groupId);
     return;
   }
 
-  clearMessages();
-  renderPersonalMessages(activeConversation.roomId);
+  renderMessages(personalMessagesByRoom.get(activeConversation.roomId) || []);
   joinPersonalRoom(activeConversation.roomId, activeConversation.email);
 }
 
-chatForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
+function connectWebSocket() {
+  if (!getToken()) {
+    return;
+  }
+
+  if (chatSocket?.connected || chatSocket?.active) {
+    return;
+  }
+
+  chatSocket = window.io(socketServerUrl, {
+    auth: {
+      token: getToken()
+    },
+    autoConnect: true,
+    reconnection: false
+  });
+
+  chatSocket.on("connect", () => {
+    if (activeConversation.type === "group" && activeConversation.groupId) {
+      joinGroupRoom(activeConversation.groupId);
+      return;
+    }
+
+    if (activeConversation.type === "personal" && activeConversation.roomId && activeConversation.email) {
+      joinPersonalRoom(activeConversation.roomId, activeConversation.email);
+    }
+  });
+
+  chatSocket.on("group:message", (data) => {
+    const message = data?.payload;
+
+    if (!message?.groupId) {
+      return;
+    }
+
+    const groupMessages = groupMessagesById.get(message.groupId) || [];
+    groupMessages.push(message);
+    groupMessagesById.set(message.groupId, groupMessages);
+
+    if (activeConversation.type === "group" && activeConversation.groupId === message.groupId) {
+      appendMessage(message);
+    }
+  });
+
+  chatSocket.on("groups:updated", async (data) => {
+    const groups = data?.groups || await loadGroups().catch(() => []);
+    renderGroupChatItems(groups);
+  });
+
+  chatSocket.on("group:updated", (data) => {
+    const group = data?.group;
+
+    if (!group?.id) {
+      return;
+    }
+
+    updateGroupChatItem(group);
+  });
+
+  chatSocket.on("new_message", (data) => {
+    const message = data?.payload;
+
+    if (!message?.roomId) {
+      return;
+    }
+
+    const roomMessages = personalMessagesByRoom.get(message.roomId) || [];
+    roomMessages.push(message);
+    personalMessagesByRoom.set(message.roomId, roomMessages);
+
+    if (activeConversation.type === "personal" && activeConversation.roomId === message.roomId) {
+      appendMessage(message);
+    }
+  });
+
+  chatSocket.on("disconnect", () => {
+    if (!getToken()) {
+      return;
+    }
+
+    scheduleReconnect();
+  });
+
+  chatSocket.on("connect_error", (error) => {
+    console.error("Socket.IO connection error:", error);
+    scheduleReconnect();
+  });
+}
+
+async function initializeGroupView() {
+  const groups = await loadGroups();
+  renderGroupChatItems(groups);
+
+  const generalMessages = await loadGroupMessages("general-group");
+  renderMessages(generalMessages);
+
+  const generalItem = dynamicGroupChats.querySelector('[data-group-id="general-group"]');
+
+  if (generalItem) {
+    setActiveChatItem(generalItem);
+  }
+}
+
+chatForm.addEventListener("submit", (event) => {
+  event.preventDefault();
 
   const text = messageInput.value.trim();
-  if (!text) return;
+
+  if (!text) {
+    return;
+  }
 
   if (activeConversation.type === "personal") {
     if (!chatSocket?.connected || !activeConversation.roomId) {
@@ -438,29 +604,95 @@ chatForm.addEventListener("submit", async (e) => {
     return;
   }
 
-  try {
-    const res = await fetch("/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${getToken()}`
-      },
-      body: JSON.stringify({ message: text })
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.message || "Unable to save message");
+  chatSocket.emit("group:message:create", {
+    groupId: activeConversation.groupId,
+    message: text
+  }, (response) => {
+    if (!response?.ok) {
+      console.error(response?.message || "Unable to send group message");
+      return;
     }
 
-    if (!chatSocket?.connected) {
-      appendMessage(data.data);
-    }
-
+    const groupMessages = groupMessagesById.get(activeConversation.groupId) || [];
+    groupMessages.push(response.data);
+    groupMessagesById.set(activeConversation.groupId, groupMessages);
+    appendMessage(response.data);
     messageInput.value = "";
+  });
+});
+
+groupCreateForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const name = groupNameInput.value.trim();
+
+  if (!name) {
+    return;
+  }
+
+  try {
+    const group = await createGroup(name);
+    const groups = await loadGroups();
+    renderGroupChatItems(groups);
+    groupNameInput.value = "";
+
+    const createdItem = dynamicGroupChats.querySelector(`[data-group-id="${group.id}"]`);
+
+    if (createdItem) {
+      await activateConversation(createdItem);
+    }
   } catch (error) {
-    console.error("Error saving message:", error);
+    console.error(error.message);
+  }
+});
+
+groupJoinForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const code = groupCodeInput.value.trim();
+
+  if (!code) {
+    return;
+  }
+
+  try {
+    const group = await joinGroupByCode(code);
+    const groups = await loadGroups();
+    renderGroupChatItems(groups);
+    groupCodeInput.value = "";
+
+    const joinedItem = dynamicGroupChats.querySelector(`[data-group-id="${group.id}"]`);
+
+    if (joinedItem) {
+      await activateConversation(joinedItem);
+    }
+  } catch (error) {
+    console.error(error.message);
+  }
+});
+
+personalChatForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const email = normalizeEmail(roomEmailInput.value);
+  const currentUser = getStoredUser();
+
+  if (!email || !currentUser?.email) {
+    return;
+  }
+
+  if (email === normalizeEmail(currentUser.email)) {
+    console.error("You cannot create a personal room with your own email");
+    return;
+  }
+
+  try {
+    const existingUser = await validatePersonalChatEmail(email);
+    const personalItem = ensurePersonalChatItem(existingUser.email);
+    await activateConversation(personalItem);
+    roomEmailInput.value = "";
+  } catch (error) {
+    console.error(error.message);
   }
 });
 
@@ -480,7 +712,7 @@ logoutButton.addEventListener("click", () => {
   redirectToLogin();
 });
 
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", async () => {
   if (!ensureAuthenticated()) {
     return;
   }
@@ -488,36 +720,13 @@ window.addEventListener("DOMContentLoaded", () => {
   applyUserProfile();
   updateConversationHeader();
   clearMessages();
-  loadMessages();
   connectWebSocket();
-  baseChatItems.forEach((item) => {
-    item.addEventListener("click", () => {
-      activateConversation(item);
-    });
-  });
-  personalChatForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
 
-    const email = normalizeEmail(roomEmailInput.value);
-    const currentUser = getStoredUser();
+  try {
+    await initializeGroupView();
+  } catch (error) {
+    console.error("Unable to initialize group chats:", error);
+  }
 
-    if (!email || !currentUser?.email) {
-      return;
-    }
-
-    if (email === normalizeEmail(currentUser.email)) {
-      console.error("You cannot create a personal room with your own email");
-      return;
-    }
-
-    try {
-      const existingUser = await validatePersonalChatEmail(email);
-      const personalItem = ensurePersonalChatItem(existingUser.email);
-      activateConversation(personalItem);
-      roomEmailInput.value = "";
-    } catch (error) {
-      console.error(error.message);
-    }
-  });
   messageInput.focus();
 });

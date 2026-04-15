@@ -5,47 +5,23 @@ const cors = require("cors");
 require("dotenv").config();
 
 const authRoutes = require("./routes/authRoutes");
+const groupRoutes = require("./routes/groupRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const initializeSocketServer = require("./socket-io");
+const createGroupChatService = require("./services/groupChatService");
 const db = require("./models");
-const { Message, User } = db;
 
 const app = express();
 const httpServer = http.createServer(app);
+app.locals.groupChatService = createGroupChatService();
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-async function persistMessage({ userId, message }) {
-  const trimmedMessage = message?.trim();
-
-  if (!trimmedMessage) {
-    throw new Error("Message is required");
-  }
-
-  const newMessage = await Message.create({
-    userId,
-    message: trimmedMessage
-  });
-
-  const savedMessage = await Message.findByPk(newMessage.id, {
-    include: [
-      {
-        model: User,
-        as: "sender",
-        attributes: ["id", "name"]
-      }
-    ]
-  });
-
-  return savedMessage.toJSON();
-}
-
-app.locals.persistMessage = persistMessage;
-
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/user", authRoutes);
+app.use("/groups", groupRoutes);
 app.use("/messages", messageRoutes);
 
 app.get("/", (req, res) => {

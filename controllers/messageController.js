@@ -1,17 +1,6 @@
-const { Message, User } = require("../models");
-
 exports.getMessages = async (req, res) => {
   try {
-    const messages = await Message.findAll({
-      include: [
-        {
-          model: User,
-          as: "sender",
-          attributes: ["id", "name"]
-        }
-      ],
-      order: [["createdAt", "ASC"]]
-    });
+    const messages = req.app.locals.groupChatService.getGroupMessages("general-group");
 
     return res.status(200).json({ messages });
   } catch (error) {
@@ -24,12 +13,16 @@ exports.getMessages = async (req, res) => {
 
 exports.createMessage = async (req, res) => {
   try {
-    const savedMessage = await req.app.locals.persistMessage({
-      userId: req.user.id,
+    const savedMessage = req.app.locals.groupChatService.addMessage({
+      groupId: "general-group",
+      user: req.user,
       message: req.body.message
     });
 
-    req.app.locals.broadcastMessage?.(savedMessage);
+    req.app.locals.broadcastGroups?.();
+    req.app.locals.io?.to("group:general-group").emit("group:message", {
+      payload: savedMessage
+    });
 
     return res.status(201).json({
       message: "Message stored successfully",

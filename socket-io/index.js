@@ -10,10 +10,21 @@ function initializeSocketServer(httpServer, app) {
       methods: ["GET", "POST"]
     }
   });
+  app.locals.io = io;
+  app.locals.emitGroupsToSocket = (targetSocket) => {
+    targetSocket.emit("groups:updated", {
+      groups: app.locals.groupChatService.listGroups()
+    });
+  };
+  app.locals.emitGroupUpdate = (groupId) => {
+    const group = app.locals.groupChatService.listGroups().find((entry) => entry.id === groupId);
 
-  app.locals.broadcastMessage = (message) => {
-    io.emit("message:created", {
-      payload: message
+    if (!group) {
+      return;
+    }
+
+    io.to(`group:${groupId}`).emit("group:updated", {
+      group
     });
   };
 
@@ -21,6 +32,7 @@ function initializeSocketServer(httpServer, app) {
 
   io.on("connection", (socket) => {
     console.log(`Socket connected for user ${socket.user.id}`);
+    app.locals.emitGroupsToSocket(socket);
 
     registerChatHandlers({
       socket,
@@ -32,6 +44,12 @@ function initializeSocketServer(httpServer, app) {
     });
 
     socket.on("disconnect", (reason) => {
+      const updatedGroups = app.locals.groupChatService.disconnectSocket(socket.id);
+      updatedGroups.forEach((group) => {
+        io.to(`group:${group.id}`).emit("group:updated", {
+          group
+        });
+      });
       console.log(`Socket disconnected for user ${socket.user.id}: ${reason}`);
     });
 

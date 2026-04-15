@@ -108,6 +108,20 @@ body {
   padding: 16px 22px 10px;
 }
 
+.sidebar-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.sidebar-section-title {
+  margin-bottom: 10px;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
 .sidebar-search .form-control,
 .chat-form input {
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -137,6 +151,10 @@ body {
   overflow-y: auto;
   flex: 1;
   padding: 8px 12px 18px;
+}
+
+.chat-list-section + .chat-list-section {
+  margin-top: 14px;
 }
 
 .chat-item {
@@ -170,8 +188,15 @@ body {
   color: var(--text-muted);
 }
 
-.chat-badge {
+.chat-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   margin-left: auto;
+  gap: 6px;
+}
+
+.chat-badge {
   min-width: 28px;
   height: 28px;
   padding: 0 8px;
@@ -373,6 +398,12 @@ body {
 .chat-form .btn-primary:focus {
   background: linear-gradient(135deg, #8ef7d3, #4dece0);
   color: #07281f;
+}
+
+.sidebar-search .btn-outline-light {
+  border-radius: 18px;
+  height: 48px;
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .text-muted {
