@@ -1,3 +1,6 @@
+const fs = require("fs");
+const path = require("path");
+
 function createId(prefix) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -20,19 +23,71 @@ function serializeGroup(group) {
 function createGroupChatService() {
   const groups = new Map();
   const socketGroups = new Map();
+  const dataDirectory = path.join(__dirname, "..", "data");
+  const storageFile = path.join(dataDirectory, "groups.json");
+
+  function persistGroups() {
+    fs.mkdirSync(dataDirectory, {
+      recursive: true
+    });
+
+    const payload = Array.from(groups.values()).map((group) => ({
+      id: group.id,
+      code: group.code,
+      name: group.name,
+      createdAt: group.createdAt,
+      members: Array.from(group.members.values()),
+      messages: group.messages
+    }));
+
+    fs.writeFileSync(storageFile, JSON.stringify(payload, null, 2), "utf8");
+  }
+
+  function loadPersistedGroups() {
+    if (!fs.existsSync(storageFile)) {
+      return;
+    }
+
+    try {
+      const raw = fs.readFileSync(storageFile, "utf8");
+
+      if (!raw.trim()) {
+        return;
+      }
+
+      const parsedGroups = JSON.parse(raw);
+
+      parsedGroups.forEach((group) => {
+        groups.set(group.id, {
+          id: group.id,
+          code: group.code,
+          name: group.name,
+          createdAt: group.createdAt,
+          members: new Map((group.members || []).map((member) => [String(member.id), member])),
+          onlineUsers: new Map(),
+          messages: group.messages || []
+        });
+      });
+    } catch (error) {
+      console.error("Unable to load persisted groups:", error);
+    }
+  }
 
   function createSeedGroup() {
-    const generalGroup = {
-      id: "general-group",
-      code: "GENERAL",
-      name: "General Group",
-      createdAt: new Date().toISOString(),
-      members: new Map(),
-      onlineUsers: new Map(),
-      messages: []
-    };
+    if (!groups.has("general-group")) {
+      const generalGroup = {
+        id: "general-group",
+        code: "GENERAL",
+        name: "General Group",
+        createdAt: new Date().toISOString(),
+        members: new Map(),
+        onlineUsers: new Map(),
+        messages: []
+      };
 
-    groups.set(generalGroup.id, generalGroup);
+      groups.set(generalGroup.id, generalGroup);
+      persistGroups();
+    }
   }
 
   function getGroupById(groupId) {
@@ -102,6 +157,7 @@ function createGroupChatService() {
     return changed;
   }
 
+  loadPersistedGroups();
   createSeedGroup();
 
   return {
@@ -128,6 +184,7 @@ function createGroupChatService() {
 
       ensureMembership(group, user);
       groups.set(group.id, group);
+      persistGroups();
 
       return serializeGroup(group);
     },
@@ -141,6 +198,7 @@ function createGroupChatService() {
 
       ensureMembership(group, user);
       trackSocketInGroup(group, user, socketId);
+      persistGroups();
       return serializeGroup(group);
     },
 
@@ -228,6 +286,7 @@ function createGroupChatService() {
       };
 
       group.messages.push(groupMessage);
+      persistGroups();
       return groupMessage;
     },
 
@@ -239,6 +298,7 @@ function createGroupChatService() {
       }
 
       group.messages.push(message);
+      persistGroups();
       return message;
     },
 

@@ -34,6 +34,7 @@ function createMediaMessage({
   user,
   recipientEmail = null,
   mediaUrl,
+  mediaKey,
   fileName,
   mimeType,
   fileSize
@@ -48,6 +49,7 @@ function createMediaMessage({
     recipientEmail,
     media: {
       url: mediaUrl,
+      storageKey: mediaKey,
       fileName,
       mimeType,
       fileSize,

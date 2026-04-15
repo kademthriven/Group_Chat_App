@@ -1,0 +1,59 @@
+[
+  {
+    "id": "general-group",
+    "code": "GENERAL",
+    "name": "General Group",
+    "createdAt": "2026-04-15T05:44:22.605Z",
+    "members": [
+      {
+        "id": 1,
+        "name": "venu",
+        "email": "venu@gmail.com"
+      }
+    ],
+    "messages": []
+  },
+  {
+    "id": "group-f2wb5pkm",
+    "code": "L3O36V",
+    "name": "family",
+    "createdAt": "2026-04-15T05:44:35.357Z",
+    "members": [
+      {
+        "id": 1,
+        "name": "venu",
+        "email": "venu@gmail.com"
+      },
+      {
+        "id": 3,
+        "name": "pavani",
+        "email": "pavani@gmail.com"
+      }
+    ],
+    "messages": [
+      {
+        "id": "group-f2wb5pkm-1776231910873-wsn5zu",
+        "roomId": null,
+        "groupId": "group-f2wb5pkm",
+        "type": "media",
+        "message": "lenovo.jpg",
+        "userId": 3,
+        "recipientEmail": null,
+        "media": {
+          "url": "https://group-chat-application-thriven.s3.ap-south-2.amazonaws.com/chat-media/2026-04-15/695cca7c-67a8-4c5a-a5a4-2276664455c1-lenovo.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIATGLRHUCXSGOHNMXY%2F20260415%2Fap-south-2%2Fs3%2Faws4_request&X-Amz-Date=20260415T054510Z&X-Amz-Expires=3600&X-Amz-Signature=3f62db33bcc91199ae13af48acae0cc0b57cba133628e97e56d97d4b12c4ab8e&X-Amz-SignedHeaders=host&response-content-type=image%2Fjpeg&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+          "storageKey": "chat-media/2026-04-15/695cca7c-67a8-4c5a-a5a4-2276664455c1-lenovo.jpg",
+          "fileName": "lenovo.jpg",
+          "mimeType": "image/jpeg",
+          "fileSize": 590300,
+          "kind": "image"
+        },
+        "sender": {
+          "id": 3,
+          "name": "pavani",
+          "email": "pavani@gmail.com"
+        },
+        "createdAt": "2026-04-15T05:45:10.873Z"
+      }
+    ]
+  }
+]

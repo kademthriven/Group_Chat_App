@@ -43,6 +43,7 @@ exports.uploadMedia = async (req, res) => {
         groupId,
         user: currentUser,
         mediaUrl: uploadResult.url,
+        mediaKey: uploadResult.key,
         fileName: req.file.originalname,
         mimeType: req.file.mimetype,
         fileSize: req.file.size
@@ -75,6 +76,7 @@ exports.uploadMedia = async (req, res) => {
         user: currentUser,
         recipientEmail,
         mediaUrl: uploadResult.url,
+        mediaKey: uploadResult.key,
         fileName: req.file.originalname,
         mimeType: req.file.mimetype,
         fileSize: req.file.size

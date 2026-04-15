@@ -719,6 +719,8 @@ groupCreateForm.addEventListener("submit", async (event) => {
     const groups = await loadGroups();
     renderGroupChatItems(groups);
     groupNameInput.value = "";
+    groupCodeInput.value = group.code;
+    window.alert(`Group created successfully. Share this group code to join: ${group.code}`);
 
     const createdItem = dynamicGroupChats.querySelector(`[data-group-id="${group.id}"]`);
 

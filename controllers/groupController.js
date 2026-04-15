@@ -62,7 +62,10 @@ exports.joinGroup = async (req, res) => {
 
 exports.getGroupMessages = async (req, res) => {
   try {
-    const messages = req.app.locals.groupChatService.getGroupMessages(req.params.groupId);
+    const rawMessages = req.app.locals.groupChatService.getGroupMessages(req.params.groupId);
+    const messages = await Promise.all(
+      rawMessages.map((message) => req.app.locals.s3MediaService.hydrateMediaMessage(message))
+    );
 
     return res.status(200).json({
       messages

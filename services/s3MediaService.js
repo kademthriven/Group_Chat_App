@@ -34,6 +34,38 @@ function createS3MediaService() {
   }
 
   return {
+    async getSignedDownloadUrl(key, mimeType) {
+      if (!key) {
+        throw new Error("Media key is required");
+      }
+
+      const { bucket, client } = getClientConfig();
+
+      return getSignedUrl(client, new GetObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        ResponseContentType: mimeType || undefined
+      }), {
+        expiresIn: Number(process.env.AWS_SIGNED_URL_TTL_SECONDS || 3600)
+      });
+    },
+
+    async hydrateMediaMessage(message) {
+      if (message?.type !== "media" || !message.media?.storageKey) {
+        return message;
+      }
+
+      const nextUrl = await this.getSignedDownloadUrl(message.media.storageKey, message.media.mimeType);
+
+      return {
+        ...message,
+        media: {
+          ...message.media,
+          url: nextUrl
+        }
+      };
+    },
+
     async uploadFile(file) {
       if (!file?.buffer || !file.originalname) {
         throw new Error("A media file is required");
