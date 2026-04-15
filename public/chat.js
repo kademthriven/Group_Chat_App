@@ -91,15 +91,37 @@ function normalizeEmail(email = "") {
   return email.trim().toLowerCase();
 }
 
-function getPersonalRoomKey(targetEmail) {
-  const currentUser = getStoredUser();
-  const normalizedTargetEmail = normalizeEmail(targetEmail);
+function generatePersonalRoomId(firstEmail, secondEmail) {
+  const participants = [normalizeEmail(firstEmail), normalizeEmail(secondEmail)]
+    .filter(Boolean)
+    .sort();
 
-  if (!currentUser?.email || !normalizedTargetEmail) {
+  if (participants.length !== 2 || participants[0] === participants[1]) {
     return null;
   }
 
-  return [normalizeEmail(currentUser.email), normalizedTargetEmail].sort().join("::");
+  return participants.join("::");
+}
+
+function getPersonalRoomKey(targetEmail) {
+  const currentUser = getStoredUser();
+  return generatePersonalRoomId(currentUser?.email, targetEmail);
+}
+
+async function validatePersonalChatEmail(email) {
+  const response = await fetch(`/user/lookup?email=${encodeURIComponent(email)}`, {
+    headers: {
+      Authorization: `Bearer ${getToken()}`
+    }
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "Unable to verify the email address");
+  }
+
+  return data.user;
 }
 
 function formatMessageTime(dateValue) {
@@ -231,8 +253,8 @@ function connectWebSocket() {
   });
 
   chatSocket.on("connect", () => {
-    if (activeConversation.roomId) {
-      joinPersonalRoom(activeConversation.roomId);
+    if (activeConversation.roomId && activeConversation.email) {
+      joinPersonalRoom(activeConversation.roomId, activeConversation.email);
     }
   });
 
@@ -328,18 +350,19 @@ function ensurePersonalChatItem(email) {
   return nextItem;
 }
 
-function joinPersonalRoom(roomId) {
-  if (!chatSocket?.connected) {
+function joinPersonalRoom(roomId, targetEmail) {
+  if (!chatSocket?.connected || !roomId || !targetEmail) {
     return;
   }
 
-  chatSocket.emit("join_room", { roomId }, (response) => {
+  chatSocket.emit("join_room", { roomId, targetEmail }, (response) => {
     if (!response?.ok) {
       console.error(response?.message || "Unable to join personal room");
       return;
     }
 
     activeConversation.roomId = response.roomId;
+    activeConversation.email = response.recipient?.email || targetEmail;
     renderPersonalMessages(response.roomId);
   });
 }
@@ -380,7 +403,7 @@ function activateConversation(item) {
 
   clearMessages();
   renderPersonalMessages(activeConversation.roomId);
-  joinPersonalRoom(activeConversation.roomId);
+  joinPersonalRoom(activeConversation.roomId, activeConversation.email);
 }
 
 chatForm.addEventListener("submit", async (e) => {
@@ -472,7 +495,7 @@ window.addEventListener("DOMContentLoaded", () => {
       activateConversation(item);
     });
   });
-  personalChatForm.addEventListener("submit", (event) => {
+  personalChatForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const email = normalizeEmail(roomEmailInput.value);
@@ -487,9 +510,14 @@ window.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const personalItem = ensurePersonalChatItem(email);
-    activateConversation(personalItem);
-    roomEmailInput.value = "";
+    try {
+      const existingUser = await validatePersonalChatEmail(email);
+      const personalItem = ensurePersonalChatItem(existingUser.email);
+      activateConversation(personalItem);
+      roomEmailInput.value = "";
+    } catch (error) {
+      console.error(error.message);
+    }
   });
   messageInput.focus();
 });

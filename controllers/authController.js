@@ -2,6 +2,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { Op } = require("sequelize");
 const { User } = require("../models");
+const { normalizeEmail } = require("../utils/personalRoom");
 require("dotenv").config();
 
 exports.signup = async (req, res) => {
@@ -105,6 +106,47 @@ exports.login = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       message: "Server error during login",
+      error: error.message
+    });
+  }
+};
+
+exports.findUserByEmail = async (req, res) => {
+  try {
+    const email = normalizeEmail(req.query.email);
+
+    if (!email) {
+      return res.status(400).json({
+        message: "Email is required"
+      });
+    }
+
+    if (email === normalizeEmail(req.user.email)) {
+      return res.status(400).json({
+        message: "You cannot start a personal chat with your own email"
+      });
+    }
+
+    const user = await User.findOne({
+      where: {
+        email
+      },
+      attributes: ["id", "name", "email"]
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found"
+      });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      user
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error while checking email",
       error: error.message
     });
   }
