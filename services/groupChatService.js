@@ -165,6 +165,14 @@ function createGroupChatService() {
       return Array.from(groups.values()).map(serializeGroup);
     },
 
+    listGroupsForUser(userId) {
+      const userKey = String(userId || "");
+
+      return Array.from(groups.values())
+        .filter((group) => group.id === "general-group" || group.members.has(userKey))
+        .map(serializeGroup);
+    },
+
     createGroup({ name, user }) {
       const normalizedName = normalizeGroupName(name);
 
@@ -202,11 +210,15 @@ function createGroupChatService() {
       return serializeGroup(group);
     },
 
-    leaveGroup({ groupId, socketId }) {
+    leaveGroup({ groupId, socketId, userId }) {
       const group = getGroupById(groupId);
 
       if (!group) {
         throw new Error("Group not found");
+      }
+
+      if (group.id !== "general-group" && userId) {
+        group.members.delete(String(userId));
       }
 
       untrackSocketFromGroup(group, socketId);
@@ -218,6 +230,10 @@ function createGroupChatService() {
         if (joinedGroups.size === 0) {
           socketGroups.delete(socketId);
         }
+      }
+
+      if (group.id !== "general-group") {
+        persistGroups();
       }
 
       return serializeGroup(group);

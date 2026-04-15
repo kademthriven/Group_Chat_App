@@ -2,6 +2,7 @@ function registerChatHandlers({ socket, app }) {
   const { user } = socket;
   const groupChatService = app.locals.groupChatService;
   const { createTextMessage } = require("../../services/chatMessageFactory");
+  const defaultGroupId = "general-group";
 
   function leaveCurrentGroupRoom(nextGroupId) {
     const currentRoomName = socket.data.activeGroupRoomName;
@@ -14,6 +15,20 @@ function registerChatHandlers({ socket, app }) {
   socket.emit("connection.ready", {
     user
   });
+
+  try {
+    const defaultGroup = groupChatService.joinGroup({
+      groupId: defaultGroupId,
+      user,
+      socketId: socket.id
+    });
+
+    socket.join(`group:${defaultGroup.id}`);
+    socket.data.activeGroupId = defaultGroup.id;
+    socket.data.activeGroupRoomName = `group:${defaultGroup.id}`;
+  } catch (error) {
+    console.error("Unable to auto-join general group:", error);
+  }
 
   socket.on("auth:me", (callback) => {
     callback?.({
@@ -70,7 +85,8 @@ function registerChatHandlers({ socket, app }) {
     try {
       group = groupChatService.leaveGroup({
         groupId,
-        socketId: socket.id
+        socketId: socket.id,
+        userId: user.id
       });
     } catch (error) {
       callback?.({
@@ -94,7 +110,7 @@ function registerChatHandlers({ socket, app }) {
     });
   });
 
-  socket.on("group:message:create", (payload = {}, callback) => {
+  socket.on("group:message:create", async (payload = {}, callback) => {
     try {
       const groupId = payload.groupId || socket.data.activeGroupId;
       const trimmedMessage = payload.message?.trim();
@@ -103,11 +119,34 @@ function registerChatHandlers({ socket, app }) {
         throw new Error("Message is required");
       }
 
-      const savedMessage = createTextMessage({
-        groupId,
-        message: trimmedMessage,
-        user
-      });
+      let savedMessage;
+
+      if (groupId === defaultGroupId && app.locals.persistGeneralMessage) {
+        const dbMessage = await app.locals.persistGeneralMessage({
+          userId: user.id,
+          message: trimmedMessage
+        });
+
+        savedMessage = {
+          id: dbMessage.id,
+          groupId,
+          type: "text",
+          message: dbMessage.message,
+          userId: dbMessage.userId,
+          sender: {
+            id: user.id,
+            name: user.name,
+            email: user.email
+          },
+          createdAt: dbMessage.createdAt
+        };
+      } else {
+        savedMessage = createTextMessage({
+          groupId,
+          message: trimmedMessage,
+          user
+        });
+      }
 
       groupChatService.appendExistingMessage({
         groupId,

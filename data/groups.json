@@ -9,20 +9,6 @@
         "id": 1,
         "name": "venu",
         "email": "venu@gmail.com"
-      }
-    ],
-    "messages": []
-  },
-  {
-    "id": "group-f2wb5pkm",
-    "code": "L3O36V",
-    "name": "family",
-    "createdAt": "2026-04-15T05:44:35.357Z",
-    "members": [
-      {
-        "id": 1,
-        "name": "venu",
-        "email": "venu@gmail.com"
       },
       {
         "id": 3,
@@ -30,6 +16,30 @@
         "email": "pavani@gmail.com"
       }
     ],
+    "messages": [
+      {
+        "id": "general-group-1776235088191-a8v623",
+        "roomId": null,
+        "groupId": "general-group",
+        "type": "text",
+        "message": "hi",
+        "userId": 1,
+        "recipientEmail": null,
+        "sender": {
+          "id": 1,
+          "name": "venu",
+          "email": "venu@gmail.com"
+        },
+        "createdAt": "2026-04-15T06:38:08.191Z"
+      }
+    ]
+  },
+  {
+    "id": "group-f2wb5pkm",
+    "code": "L3O36V",
+    "name": "family",
+    "createdAt": "2026-04-15T05:44:35.357Z",
+    "members": [],
     "messages": [
       {
         "id": "group-f2wb5pkm-1776231910873-wsn5zu",
@@ -53,6 +63,104 @@
           "email": "pavani@gmail.com"
         },
         "createdAt": "2026-04-15T05:45:10.873Z"
+      },
+      {
+        "id": "group-f2wb5pkm-1776232681608-2ldu6h",
+        "roomId": null,
+        "groupId": "group-f2wb5pkm",
+        "type": "media",
+        "message": "134072289462849219.jpg",
+        "userId": 1,
+        "recipientEmail": null,
+        "media": {
+          "url": "https://group-chat-application-thriven.s3.ap-south-2.amazonaws.com/chat-media/2026-04-15/e3bd8840-1bed-4092-897f-1cc08328066d-134072289462849219.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIATGLRHUCXSGOHNMXY%2F20260415%2Fap-south-2%2Fs3%2Faws4_request&X-Amz-Date=20260415T055801Z&X-Amz-Expires=3600&X-Amz-Signature=d9ea2204ab1b674da2ffb132f98db619b729237dd3b5ab2f4a1c1c6d1f23bfca&X-Amz-SignedHeaders=host&response-content-type=image%2Fjpeg&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+          "storageKey": "chat-media/2026-04-15/e3bd8840-1bed-4092-897f-1cc08328066d-134072289462849219.jpg",
+          "fileName": "134072289462849219.jpg",
+          "mimeType": "image/jpeg",
+          "fileSize": 2198870,
+          "kind": "image"
+        },
+        "sender": {
+          "id": 1,
+          "name": "venu",
+          "email": "venu@gmail.com"
+        },
+        "createdAt": "2026-04-15T05:58:01.608Z"
+      }
+    ]
+  },
+  {
+    "id": "group-zkwbhgvt",
+    "code": "2T161P",
+    "name": "warriors",
+    "createdAt": "2026-04-15T06:51:37.604Z",
+    "members": [
+      {
+        "id": 1,
+        "name": "venu",
+        "email": "venu@gmail.com"
+      }
+    ],
+    "messages": [
+      {
+        "id": "group-zkwbhgvt-1776235948632-32qv2r",
+        "roomId": null,
+        "groupId": "group-zkwbhgvt",
+        "type": "text",
+        "message": "hello",
+        "userId": 1,
+        "recipientEmail": null,
+        "sender": {
+          "id": 1,
+          "name": "venu",
+          "email": "venu@gmail.com"
+        },
+        "createdAt": "2026-04-15T06:52:28.632Z"
+      },
+      {
+        "id": "group-zkwbhgvt-1776235994732-hx0s53",
+        "roomId": null,
+        "groupId": "group-zkwbhgvt",
+        "type": "text",
+        "message": "hi",
+        "userId": 3,
+        "recipientEmail": null,
+        "sender": {
+          "id": 3,
+          "name": "pavani",
+          "email": "pavani@gmail.com"
+        },
+        "createdAt": "2026-04-15T06:53:14.732Z"
+      },
+      {
+        "id": "group-zkwbhgvt-1776236031576-fy3lee",
+        "roomId": null,
+        "groupId": "group-zkwbhgvt",
+        "type": "text",
+        "message": "what are you doing",
+        "userId": 3,
+        "recipientEmail": null,
+        "sender": {
+          "id": 3,
+          "name": "pavani",
+          "email": "pavani@gmail.com"
+        },
+        "createdAt": "2026-04-15T06:53:51.576Z"
+      },
+      {
+        "id": "group-zkwbhgvt-1776236044027-ogw7cq",
+        "roomId": null,
+        "groupId": "group-zkwbhgvt",
+        "type": "text",
+        "message": "nothing",
+        "userId": 1,
+        "recipientEmail": null,
+        "sender": {
+          "id": 1,
+          "name": "venu",
+          "email": "venu@gmail.com"
+        },
+        "createdAt": "2026-04-15T06:54:04.027Z"
       }
     ]
   }

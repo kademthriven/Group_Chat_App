@@ -22,8 +22,10 @@ function initializeSocketServer(httpServer, app) {
     });
   };
   app.locals.emitGroupsToSocket = (targetSocket) => {
+    const socketUserId = targetSocket.user?.id || targetSocket.data?.user?.id;
+
     targetSocket.emit("groups:updated", {
-      groups: app.locals.groupChatService.listGroups()
+      groups: app.locals.groupChatService.listGroupsForUser(socketUserId)
     });
   };
   app.locals.emitGroupUpdate = (groupId) => {

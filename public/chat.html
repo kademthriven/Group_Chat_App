@@ -29,52 +29,69 @@
           <p class="eyebrow mb-2">Workspace</p>
           <h4 class="mb-0">Pulse Chat</h4>
         </div>
-        <div class="user-pill" id="sidebarUserPill">Guest</div>
+        <div class="sidebar-header-actions">
+          <div class="user-pill" id="sidebarUserPill">Guest</div>
+          <div class="sidebar-menu-wrap">
+            <button type="button" id="sidebarMenuButton" class="sidebar-menu-button" aria-label="Open actions menu">⋯</button>
+            <div id="sidebarMenu" class="sidebar-menu">
+              <button type="button" class="sidebar-menu-item" data-compose-target="personal">New personal chat</button>
+              <button type="button" class="sidebar-menu-item" data-compose-target="group">New group</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="sidebar-search">
-        <div class="sidebar-stack">
-          <div>
-            <p class="sidebar-section-title">Create Group</p>
-            <form id="groupCreateForm" class="personal-chat-form">
-              <input
-                type="text"
-                id="groupNameInput"
-                class="form-control"
-                placeholder="Create a new group"
-                autocomplete="off"
-              />
-              <button type="submit" class="btn btn-primary w-100 mt-3">Create Group</button>
-            </form>
+        <div class="compose-card">
+          <div class="compose-card-header">
+            <div>
+              <p class="sidebar-section-title mb-1" id="composeTitle">New personal chat</p>
+              <small class="compose-helper" id="composeHelper">Search people by email to start chatting.</small>
+            </div>
           </div>
 
-          <div>
-            <p class="sidebar-section-title">Join Group</p>
-            <form id="groupJoinForm" class="personal-chat-form">
-              <input
-                type="text"
-                id="groupCodeInput"
-                class="form-control"
-                placeholder="Enter group code"
-                autocomplete="off"
-              />
-              <button type="submit" class="btn btn-outline-light w-100 mt-3">Join by Code</button>
-            </form>
-          </div>
+          <form id="personalChatForm" class="compose-form is-active" data-compose-panel="personal">
+            <input
+              type="email"
+              id="roomEmailInput"
+              class="form-control"
+              placeholder="Search user by email"
+              autocomplete="off"
+            />
+            <button type="submit" class="btn btn-primary w-100 mt-3">Start chat</button>
+          </form>
 
-          <div>
-            <p class="sidebar-section-title">Direct Message</p>
-            <form id="personalChatForm" class="personal-chat-form">
-              <input
-                type="email"
-                id="roomEmailInput"
-                class="form-control"
-                placeholder="Enter user email to start a DM"
-                autocomplete="off"
-              />
-              <button type="submit" class="btn btn-primary w-100 mt-3">Start DM</button>
-            </form>
-          </div>
+          <form id="groupCreateForm" class="compose-form" data-compose-panel="group">
+            <input
+              type="text"
+              id="groupNameInput"
+              class="form-control"
+              placeholder="Enter group name"
+              autocomplete="off"
+            />
+            <button type="submit" class="btn btn-primary w-100 mt-3">Create group</button>
+          </form>
+
+          <form id="groupJoinForm" class="join-code-form mt-3">
+            <input
+              type="text"
+              id="groupCodeInput"
+              class="form-control"
+              placeholder="Join with group code"
+              autocomplete="off"
+            />
+            <button type="submit" class="btn btn-outline-light">Join</button>
+          </form>
+        </div>
+
+        <div class="conversation-filter">
+          <input
+            type="text"
+            id="conversationSearchInput"
+            class="form-control"
+            placeholder="Search groups or chats"
+            autocomplete="off"
+          />
         </div>
       </div>
 
@@ -101,6 +118,14 @@
           </div>
         </div>
         <div class="header-actions">
+          <button
+            type="button"
+            id="leaveGroupButton"
+            class="btn btn-light btn-sm leave-group-button"
+            hidden
+          >
+            Leave Group
+          </button>
           <div class="presence-dot"></div>
           <span id="headerUserName">Guest</span>
           <button type="button" id="logoutButton" class="btn btn-light btn-sm">
@@ -139,6 +164,7 @@
       </div>
 
       <div class="chat-input-area">
+        <div id="attachmentPreview" class="attachment-preview"></div>
         <form id="chatForm" class="chat-form">
           <label for="mediaInput" class="media-picker-btn" title="Share media">+</label>
           <input

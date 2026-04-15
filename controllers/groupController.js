@@ -1,6 +1,6 @@
 exports.listGroups = async (req, res) => {
   try {
-    const groups = req.app.locals.groupChatService.listGroups();
+    const groups = req.app.locals.groupChatService.listGroupsForUser(req.user.id);
 
     return res.status(200).json({
       groups

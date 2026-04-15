@@ -4,6 +4,7 @@ const chatMessages = document.getElementById("chatMessages");
 const headerUserName = document.getElementById("headerUserName");
 const sidebarUserPill = document.getElementById("sidebarUserPill");
 const logoutButton = document.getElementById("logoutButton");
+const leaveGroupButton = document.getElementById("leaveGroupButton");
 const chatTitle = document.getElementById("chatTitle");
 const chatSubtitle = document.getElementById("chatSubtitle");
 const personalChatForm = document.getElementById("personalChatForm");
@@ -14,7 +15,13 @@ const groupJoinForm = document.getElementById("groupJoinForm");
 const groupCodeInput = document.getElementById("groupCodeInput");
 const dynamicGroupChats = document.getElementById("dynamicGroupChats");
 const dynamicPersonalChats = document.getElementById("dynamicPersonalChats");
+const sidebarMenuButton = document.getElementById("sidebarMenuButton");
+const sidebarMenu = document.getElementById("sidebarMenu");
+const composeTitle = document.getElementById("composeTitle");
+const composeHelper = document.getElementById("composeHelper");
+const conversationSearchInput = document.getElementById("conversationSearchInput");
 const mediaInput = document.getElementById("mediaInput");
+const attachmentPreview = document.getElementById("attachmentPreview");
 const renderedMessageIds = new Set();
 const socketServerUrl = window.location.origin;
 const dateDividerMarkup = `
@@ -25,6 +32,7 @@ const dateDividerMarkup = `
 
 let chatSocket;
 let reconnectTimeoutId;
+let pendingAttachment = null;
 
 let activeConversation = {
   type: "group",
@@ -37,6 +45,18 @@ let activeConversation = {
 
 const groupMessagesById = new Map();
 const personalMessagesByRoom = new Map();
+const composePanelContent = {
+  personal: {
+    title: "New personal chat",
+    helper: "Search people by email to start chatting.",
+    focusId: "roomEmailInput"
+  },
+  group: {
+    title: "Create group",
+    helper: "Create a group, then share its code with others.",
+    focusId: "groupNameInput"
+  }
+};
 
 function getStoredUser() {
   const rawUser = localStorage.getItem("chatUser");
@@ -95,6 +115,41 @@ function clearMessages() {
   renderedMessageIds.clear();
 }
 
+function formatFileSize(size = 0) {
+  if (size < 1024) {
+    return `${size} B`;
+  }
+
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function renderAttachmentPreview() {
+  if (!pendingAttachment) {
+    attachmentPreview.classList.remove("is-visible");
+    attachmentPreview.innerHTML = "";
+    return;
+  }
+
+  attachmentPreview.classList.add("is-visible");
+  attachmentPreview.innerHTML = `
+    <div class="attachment-meta">
+      <div class="attachment-name">${pendingAttachment.name}</div>
+      <div class="attachment-size">${formatFileSize(pendingAttachment.size)}</div>
+    </div>
+    <button type="button" id="attachmentRemoveButton" class="attachment-remove" aria-label="Remove attachment">×</button>
+  `;
+
+  document.getElementById("attachmentRemoveButton")?.addEventListener("click", () => {
+    pendingAttachment = null;
+    mediaInput.value = "";
+    renderAttachmentPreview();
+  });
+}
+
 function scrollToBottom() {
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
@@ -108,8 +163,16 @@ function applyUserProfile() {
 }
 
 function updateConversationHeader() {
+  const shouldShowLeaveButton = (
+    activeConversation.type === "group" &&
+    activeConversation.groupId &&
+    activeConversation.groupId !== "general-group"
+  );
+
   chatTitle.textContent = activeConversation.name;
   chatSubtitle.textContent = activeConversation.subtitle;
+  leaveGroupButton.hidden = !shouldShowLeaveButton;
+  leaveGroupButton.classList.toggle("is-visible", shouldShowLeaveButton);
 }
 
 function getGroupSubtitle(group) {
@@ -453,6 +516,31 @@ function setActiveChatItem(nextItem) {
   });
 }
 
+function setComposePanel(target) {
+  const nextPanel = composePanelContent[target] ? target : "personal";
+
+  document.querySelectorAll("[data-compose-panel]").forEach((panel) => {
+    panel.classList.toggle("is-active", panel.dataset.composePanel === nextPanel);
+  });
+
+  composeTitle.textContent = composePanelContent[nextPanel].title;
+  composeHelper.textContent = composePanelContent[nextPanel].helper;
+  sidebarMenu.classList.remove("is-open");
+
+  const focusElement = document.getElementById(composePanelContent[nextPanel].focusId);
+  focusElement?.focus();
+}
+
+function filterConversationItems(searchTerm) {
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+
+  getChatItems().forEach((item) => {
+    const searchableText = `${item.dataset.chatName || ""} ${item.dataset.chatStatus || ""}`.toLowerCase();
+    const shouldShow = !normalizedSearch || searchableText.includes(normalizedSearch);
+    item.style.display = shouldShow ? "" : "none";
+  });
+}
+
 function scheduleReconnect() {
   if (reconnectTimeoutId) {
     return;
@@ -653,10 +741,39 @@ async function initializeGroupView() {
   }
 }
 
-chatForm.addEventListener("submit", (event) => {
+chatForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const text = messageInput.value.trim();
+  const attachmentToSend = pendingAttachment;
+
+  if (!text && !attachmentToSend) {
+    return;
+  }
+
+  if (attachmentToSend) {
+    try {
+      const mediaMessage = await uploadMediaFile(attachmentToSend);
+
+      if (activeConversation.type === "group") {
+        const groupMessages = groupMessagesById.get(activeConversation.groupId) || [];
+        groupMessages.push(mediaMessage);
+        groupMessagesById.set(activeConversation.groupId, groupMessages);
+      } else {
+        const roomMessages = personalMessagesByRoom.get(activeConversation.roomId) || [];
+        roomMessages.push(mediaMessage);
+        personalMessagesByRoom.set(activeConversation.roomId, roomMessages);
+      }
+
+      appendMessage(mediaMessage);
+      pendingAttachment = null;
+      mediaInput.value = "";
+      renderAttachmentPreview();
+    } catch (error) {
+      console.error(error.message);
+      return;
+    }
+  }
 
   if (!text) {
     return;
@@ -721,6 +838,7 @@ groupCreateForm.addEventListener("submit", async (event) => {
     groupNameInput.value = "";
     groupCodeInput.value = group.code;
     window.alert(`Group created successfully. Share this group code to join: ${group.code}`);
+    setComposePanel("group");
 
     const createdItem = dynamicGroupChats.querySelector(`[data-group-id="${group.id}"]`);
 
@@ -782,32 +900,35 @@ personalChatForm.addEventListener("submit", async (event) => {
   }
 });
 
-mediaInput.addEventListener("change", async (event) => {
+sidebarMenuButton.addEventListener("click", () => {
+  sidebarMenu.classList.toggle("is-open");
+});
+
+document.querySelectorAll(".sidebar-menu-item").forEach((button) => {
+  button.addEventListener("click", () => {
+    setComposePanel(button.dataset.composeTarget);
+  });
+});
+
+document.addEventListener("click", (event) => {
+  if (!sidebarMenu.contains(event.target) && event.target !== sidebarMenuButton) {
+    sidebarMenu.classList.remove("is-open");
+  }
+});
+
+conversationSearchInput.addEventListener("input", (event) => {
+  filterConversationItems(event.target.value);
+});
+
+mediaInput.addEventListener("change", (event) => {
   const [file] = event.target.files || [];
 
   if (!file) {
     return;
   }
 
-  try {
-    const mediaMessage = await uploadMediaFile(file);
-
-    if (activeConversation.type === "group") {
-      const groupMessages = groupMessagesById.get(activeConversation.groupId) || [];
-      groupMessages.push(mediaMessage);
-      groupMessagesById.set(activeConversation.groupId, groupMessages);
-    } else {
-      const roomMessages = personalMessagesByRoom.get(activeConversation.roomId) || [];
-      roomMessages.push(mediaMessage);
-      personalMessagesByRoom.set(activeConversation.roomId, roomMessages);
-    }
-
-    appendMessage(mediaMessage);
-  } catch (error) {
-    console.error(error.message);
-  } finally {
-    mediaInput.value = "";
-  }
+  pendingAttachment = file;
+  renderAttachmentPreview();
 });
 
 logoutButton.addEventListener("click", () => {
@@ -826,6 +947,21 @@ logoutButton.addEventListener("click", () => {
   redirectToLogin();
 });
 
+leaveGroupButton.addEventListener("click", async () => {
+  if (activeConversation.type !== "group" || !activeConversation.groupId || activeConversation.groupId === "general-group") {
+    return;
+  }
+
+  const leavingGroupId = activeConversation.groupId;
+  leaveGroupRoom(leavingGroupId);
+
+  const generalItem = dynamicGroupChats.querySelector('[data-group-id="general-group"]');
+
+  if (generalItem) {
+    await activateConversation(generalItem);
+  }
+});
+
 window.addEventListener("DOMContentLoaded", async () => {
   if (!ensureAuthenticated()) {
     return;
@@ -842,5 +978,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     console.error("Unable to initialize group chats:", error);
   }
 
+  setComposePanel("personal");
   messageInput.focus();
 });
