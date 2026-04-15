@@ -6,14 +6,17 @@ require("dotenv").config();
 
 const authRoutes = require("./routes/authRoutes");
 const groupRoutes = require("./routes/groupRoutes");
+const mediaRoutes = require("./routes/mediaRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const initializeSocketServer = require("./socket-io");
 const createGroupChatService = require("./services/groupChatService");
+const createS3MediaService = require("./services/s3MediaService");
 const db = require("./models");
 
 const app = express();
 const httpServer = http.createServer(app);
 app.locals.groupChatService = createGroupChatService();
+app.locals.s3MediaService = createS3MediaService();
 
 app.use(cors());
 app.use(express.json());
@@ -22,6 +25,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/user", authRoutes);
 app.use("/groups", groupRoutes);
+app.use("/media", mediaRoutes);
 app.use("/messages", messageRoutes);
 
 app.get("/", (req, res) => {

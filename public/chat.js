@@ -14,6 +14,7 @@ const groupJoinForm = document.getElementById("groupJoinForm");
 const groupCodeInput = document.getElementById("groupCodeInput");
 const dynamicGroupChats = document.getElementById("dynamicGroupChats");
 const dynamicPersonalChats = document.getElementById("dynamicPersonalChats");
+const mediaInput = document.getElementById("mediaInput");
 const renderedMessageIds = new Set();
 const socketServerUrl = window.location.origin;
 const dateDividerMarkup = `
@@ -158,19 +159,60 @@ function createMessageElement({ text, type = "sent", senderName = "", createdAt 
     bubble.appendChild(sender);
   }
 
-  const messageText = document.createElement("div");
-  messageText.className = "message-text";
-  messageText.textContent = text;
+  if (text) {
+    const messageText = document.createElement("div");
+    messageText.className = "message-text";
+    messageText.textContent = text;
+    bubble.appendChild(messageText);
+  }
 
   const messageTime = document.createElement("div");
   messageTime.className = "message-time";
   messageTime.textContent = formatMessageTime(createdAt);
 
-  bubble.appendChild(messageText);
   bubble.appendChild(messageTime);
   row.appendChild(bubble);
 
   return row;
+}
+
+function appendMediaContent(bubble, media) {
+  if (!media?.url) {
+    return;
+  }
+
+  if (media.kind === "image") {
+    const wrapper = document.createElement("div");
+    wrapper.className = "message-media";
+
+    const image = document.createElement("img");
+    image.src = media.url;
+    image.alt = media.fileName || "Shared image";
+    wrapper.appendChild(image);
+    bubble.appendChild(wrapper);
+    return;
+  }
+
+  if (media.kind === "video") {
+    const wrapper = document.createElement("div");
+    wrapper.className = "message-media";
+
+    const video = document.createElement("video");
+    video.src = media.url;
+    video.controls = true;
+    video.preload = "metadata";
+    wrapper.appendChild(video);
+    bubble.appendChild(wrapper);
+    return;
+  }
+
+  const fileLink = document.createElement("a");
+  fileLink.className = "message-file";
+  fileLink.href = media.url;
+  fileLink.target = "_blank";
+  fileLink.rel = "noopener noreferrer";
+  fileLink.textContent = media.fileName || "Open file";
+  bubble.appendChild(fileLink);
 }
 
 function appendMessage(message) {
@@ -184,11 +226,24 @@ function appendMessage(message) {
   renderedMessageIds.add(messageId);
 
   const messageElement = createMessageElement({
-    text: message.message,
+    text: message.type === "media" ? null : message.message,
     type: getMessageType(message.userId),
     senderName: message.sender?.name || "Unknown",
     createdAt: message.createdAt
   });
+
+  const bubble = messageElement.querySelector(".message-bubble");
+
+  if (message.type === "media" && bubble) {
+    appendMediaContent(bubble, message.media);
+
+    if (message.message) {
+      const fileName = document.createElement("div");
+      fileName.className = "message-text";
+      fileName.textContent = message.message;
+      bubble.insertBefore(fileName, bubble.querySelector(".message-time"));
+    }
+  }
 
   chatMessages.appendChild(messageElement);
   scrollToBottom();
@@ -256,6 +311,35 @@ async function joinGroupByCode(code) {
 async function validatePersonalChatEmail(email) {
   const data = await apiRequest(`/user/lookup?email=${encodeURIComponent(email)}`);
   return data.user;
+}
+
+async function uploadMediaFile(file) {
+  const formData = new FormData();
+  formData.append("media", file);
+
+  if (activeConversation.type === "group") {
+    formData.append("conversationType", "group");
+    formData.append("groupId", activeConversation.groupId);
+  } else {
+    formData.append("conversationType", "personal");
+    formData.append("recipientEmail", activeConversation.email);
+  }
+
+  const response = await fetch("/media/upload", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${getToken()}`
+    },
+    body: formData
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || "Unable to upload media");
+  }
+
+  return data.data;
 }
 
 function createGroupChatItem(group) {
@@ -693,6 +777,34 @@ personalChatForm.addEventListener("submit", async (event) => {
     roomEmailInput.value = "";
   } catch (error) {
     console.error(error.message);
+  }
+});
+
+mediaInput.addEventListener("change", async (event) => {
+  const [file] = event.target.files || [];
+
+  if (!file) {
+    return;
+  }
+
+  try {
+    const mediaMessage = await uploadMediaFile(file);
+
+    if (activeConversation.type === "group") {
+      const groupMessages = groupMessagesById.get(activeConversation.groupId) || [];
+      groupMessages.push(mediaMessage);
+      groupMessagesById.set(activeConversation.groupId, groupMessages);
+    } else {
+      const roomMessages = personalMessagesByRoom.get(activeConversation.roomId) || [];
+      roomMessages.push(mediaMessage);
+      personalMessagesByRoom.set(activeConversation.roomId, roomMessages);
+    }
+
+    appendMessage(mediaMessage);
+  } catch (error) {
+    console.error(error.message);
+  } finally {
+    mediaInput.value = "";
   }
 });
 

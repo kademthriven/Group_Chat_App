@@ -229,6 +229,21 @@ function createGroupChatService() {
 
       group.messages.push(groupMessage);
       return groupMessage;
+    },
+
+    appendExistingMessage({ groupId, message }) {
+      const group = getGroupById(groupId);
+
+      if (!group) {
+        throw new Error("Group not found");
+      }
+
+      group.messages.push(message);
+      return message;
+    },
+
+    hasGroup(groupId) {
+      return Boolean(getGroupById(groupId));
     }
   };
 }

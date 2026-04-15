@@ -1,6 +1,7 @@
 function registerChatHandlers({ socket, app }) {
   const { user } = socket;
   const groupChatService = app.locals.groupChatService;
+  const { createTextMessage } = require("../../services/chatMessageFactory");
 
   function leaveCurrentGroupRoom(nextGroupId) {
     const currentRoomName = socket.data.activeGroupRoomName;
@@ -96,15 +97,23 @@ function registerChatHandlers({ socket, app }) {
   socket.on("group:message:create", (payload = {}, callback) => {
     try {
       const groupId = payload.groupId || socket.data.activeGroupId;
-      const savedMessage = groupChatService.addMessage({
+      const trimmedMessage = payload.message?.trim();
+
+      if (!trimmedMessage) {
+        throw new Error("Message is required");
+      }
+
+      const savedMessage = createTextMessage({
         groupId,
-        user,
-        message: payload.message
+        message: trimmedMessage,
+        user
       });
 
-      socket.to(`group:${groupId}`).emit("group:message", {
-        payload: savedMessage
+      groupChatService.appendExistingMessage({
+        groupId,
+        message: savedMessage
       });
+      app.locals.emitGroupMessage?.(groupId, savedMessage);
 
       callback?.({
         ok: true,

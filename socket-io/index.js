@@ -11,6 +11,16 @@ function initializeSocketServer(httpServer, app) {
     }
   });
   app.locals.io = io;
+  app.locals.emitGroupMessage = (groupId, message) => {
+    io.to(`group:${groupId}`).emit("group:message", {
+      payload: message
+    });
+  };
+  app.locals.emitPersonalMessage = (roomId, message) => {
+    io.to(roomId).emit("new_message", {
+      payload: message
+    });
+  };
   app.locals.emitGroupsToSocket = (targetSocket) => {
     targetSocket.emit("groups:updated", {
       groups: app.locals.groupChatService.listGroups()

@@ -1,4 +1,5 @@
 const { User } = require("../../models");
+const { createTextMessage } = require("../../services/chatMessageFactory");
 const { normalizeEmail, generatePersonalRoomId } = require("../../utils/personalRoom");
 
 function normalizeRoomId(roomId = "") {
@@ -132,18 +133,12 @@ function registerPersonalChatHandlers({ socket }) {
       return;
     }
 
-    const personalMessage = {
+    const personalMessage = createTextMessage({
       roomId,
       message,
-      userId: socket.user.id,
-      recipientEmail,
-      sender: {
-        id: socket.user.id,
-        name: socket.user.name,
-        email: socket.user.email
-      },
-      createdAt: new Date().toISOString()
-    };
+      user: socket.user,
+      recipientEmail
+    });
 
     socket.to(roomId).emit("new_message", {
       payload: personalMessage
