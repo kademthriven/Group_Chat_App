@@ -7,6 +7,7 @@ require("dotenv").config();
 
 const authRoutes = require("./routes/authRoutes");
 const archiveRoutes = require("./routes/archiveRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 const groupRoutes = require("./routes/groupRoutes");
 const mediaRoutes = require("./routes/mediaRoutes");
 const messageRoutes = require("./routes/messageRoutes");
@@ -51,6 +52,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/user", authRoutes);
 app.use("/archive", archiveRoutes);
+app.use("/ai", aiRoutes);
 app.use("/groups", groupRoutes);
 app.use("/media", mediaRoutes);
 app.use("/messages", messageRoutes);

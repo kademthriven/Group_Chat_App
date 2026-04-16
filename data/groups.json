@@ -31,6 +31,149 @@
           "email": "venu@gmail.com"
         },
         "createdAt": "2026-04-15T06:38:08.191Z"
+      },
+      {
+        "id": 11,
+        "groupId": "general-group",
+        "type": "text",
+        "message": "hello",
+        "userId": 3,
+        "sender": {
+          "id": 3,
+          "name": "pavani",
+          "email": "pavani@gmail.com"
+        },
+        "createdAt": "2026-04-15T07:09:26.000Z"
+      },
+      {
+        "id": 12,
+        "groupId": "general-group",
+        "type": "text",
+        "message": "can we meet once",
+        "userId": 1,
+        "sender": {
+          "id": 1,
+          "name": "venu",
+          "email": "venu@gmail.com"
+        },
+        "createdAt": "2026-04-16T07:59:57.000Z"
+      },
+      {
+        "id": 13,
+        "groupId": "general-group",
+        "type": "text",
+        "message": "Sounds good",
+        "userId": 1,
+        "sender": {
+          "id": 1,
+          "name": "venu",
+          "email": "venu@gmail.com"
+        },
+        "createdAt": "2026-04-16T08:00:32.000Z"
+      },
+      {
+        "id": 14,
+        "groupId": "general-group",
+        "type": "text",
+        "message": "which place can we meet",
+        "userId": 3,
+        "sender": {
+          "id": 3,
+          "name": "pavani",
+          "email": "pavani@gmail.com"
+        },
+        "createdAt": "2026-04-16T08:01:09.000Z"
+      },
+      {
+        "id": 15,
+        "groupId": "general-group",
+        "type": "text",
+        "message": "Will update you shortly",
+        "userId": 1,
+        "sender": {
+          "id": 1,
+          "name": "venu",
+          "email": "venu@gmail.com"
+        },
+        "createdAt": "2026-04-16T08:01:50.000Z"
+      },
+      {
+        "id": 16,
+        "groupId": "general-group",
+        "type": "text",
+        "message": "hey did fixed place",
+        "userId": 1,
+        "sender": {
+          "id": 1,
+          "name": "venu",
+          "email": "venu@gmail.com"
+        },
+        "createdAt": "2026-04-16T08:02:21.000Z"
+      },
+      {
+        "id": 17,
+        "groupId": "general-group",
+        "type": "text",
+        "message": "Are you coming to the meeting?",
+        "userId": 1,
+        "sender": {
+          "id": 1,
+          "name": "venu",
+          "email": "venu@gmail.com"
+        },
+        "createdAt": "2026-04-16T08:11:33.000Z"
+      },
+      {
+        "id": 18,
+        "groupId": "general-group",
+        "type": "text",
+        "message": "Yes, I will be there",
+        "userId": 3,
+        "sender": {
+          "id": 3,
+          "name": "pavani",
+          "email": "pavani@gmail.com"
+        },
+        "createdAt": "2026-04-16T08:18:39.000Z"
+      },
+      {
+        "id": 19,
+        "groupId": "general-group",
+        "type": "text",
+        "message": "Sounds good",
+        "userId": 1,
+        "sender": {
+          "id": 1,
+          "name": "venu",
+          "email": "venu@gmail.com"
+        },
+        "createdAt": "2026-04-16T08:26:37.000Z"
+      },
+      {
+        "id": 20,
+        "groupId": "general-group",
+        "type": "text",
+        "message": "hi",
+        "userId": 3,
+        "sender": {
+          "id": 3,
+          "name": "pavani",
+          "email": "pavani@gmail.com"
+        },
+        "createdAt": "2026-04-16T08:38:54.000Z"
+      },
+      {
+        "id": 21,
+        "groupId": "general-group",
+        "type": "text",
+        "message": "Hello",
+        "userId": 1,
+        "sender": {
+          "id": 1,
+          "name": "venu",
+          "email": "venu@gmail.com"
+        },
+        "createdAt": "2026-04-16T08:39:07.000Z"
       }
     ]
   },
@@ -94,13 +237,7 @@
     "code": "2T161P",
     "name": "warriors",
     "createdAt": "2026-04-15T06:51:37.604Z",
-    "members": [
-      {
-        "id": 1,
-        "name": "venu",
-        "email": "venu@gmail.com"
-      }
-    ],
+    "members": [],
     "messages": [
       {
         "id": "group-zkwbhgvt-1776235948632-32qv2r",
@@ -161,6 +298,45 @@
           "email": "venu@gmail.com"
         },
         "createdAt": "2026-04-15T06:54:04.027Z"
+      }
+    ]
+  },
+  {
+    "id": "group-d7hgukav",
+    "code": "JEM0JV",
+    "name": "family",
+    "createdAt": "2026-04-15T07:00:06.907Z",
+    "members": [],
+    "messages": [
+      {
+        "id": "group-d7hgukav-1776236462294-m8odtw",
+        "roomId": null,
+        "groupId": "group-d7hgukav",
+        "type": "text",
+        "message": "hi",
+        "userId": 3,
+        "recipientEmail": null,
+        "sender": {
+          "id": 3,
+          "name": "pavani",
+          "email": "pavani@gmail.com"
+        },
+        "createdAt": "2026-04-15T07:01:02.294Z"
+      },
+      {
+        "id": "group-d7hgukav-1776236473062-3o9p5i",
+        "roomId": null,
+        "groupId": "group-d7hgukav",
+        "type": "text",
+        "message": "hello",
+        "userId": 1,
+        "recipientEmail": null,
+        "sender": {
+          "id": 1,
+          "name": "venu",
+          "email": "venu@gmail.com"
+        },
+        "createdAt": "2026-04-15T07:01:13.063Z"
       }
     ]
   }

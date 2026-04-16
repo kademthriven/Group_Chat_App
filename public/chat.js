@@ -17,11 +17,19 @@ const dynamicGroupChats = document.getElementById("dynamicGroupChats");
 const dynamicPersonalChats = document.getElementById("dynamicPersonalChats");
 const sidebarMenuButton = document.getElementById("sidebarMenuButton");
 const sidebarMenu = document.getElementById("sidebarMenu");
+const composeCard = document.getElementById("composeCard");
 const composeTitle = document.getElementById("composeTitle");
 const composeHelper = document.getElementById("composeHelper");
 const conversationSearchInput = document.getElementById("conversationSearchInput");
 const mediaInput = document.getElementById("mediaInput");
 const attachmentPreview = document.getElementById("attachmentPreview");
+const predictiveSuggestions = document.getElementById("predictiveSuggestions");
+const smartReplies = document.getElementById("smartReplies");
+const emojiPicker = document.getElementById("emojiPicker");
+const emojiToggleButton = document.getElementById("emojiToggleButton");
+const emojiSearchInput = document.getElementById("emojiSearchInput");
+const emojiCategoryTabs = document.getElementById("emojiCategoryTabs");
+const emojiGrid = document.getElementById("emojiGrid");
 const renderedMessageIds = new Set();
 const socketServerUrl = window.location.origin;
 const dateDividerMarkup = `
@@ -33,6 +41,8 @@ const dateDividerMarkup = `
 let chatSocket;
 let reconnectTimeoutId;
 let pendingAttachment = null;
+let suggestionRequestId = 0;
+let suggestionDebounceId = null;
 
 let activeConversation = {
   type: "group",
@@ -45,6 +55,11 @@ let activeConversation = {
 
 const groupMessagesById = new Map();
 const personalMessagesByRoom = new Map();
+const emojiCatalog = [
+  { id: "smileys", label: "Smileys", emojis: ["😀", "😄", "😁", "🙂", "😊", "😉", "😍", "😘", "😎", "🥳", "🤗", "😇", "😴", "🤔", "😅", "😂", "😭", "😡"] },
+  { id: "gestures", label: "Gestures", emojis: ["👋", "🤝", "👍", "👏", "🙌", "👌", "✌️", "🤞", "🙏", "💪", "👀", "🔥", "❤️", "💯", "✨"] },
+  { id: "work", label: "Work", emojis: ["💼", "📅", "📍", "📞", "💬", "📝", "📎", "✅", "⏳", "🚀", "💻", "📊", "📌", "📁"] }
+];
 const composePanelContent = {
   personal: {
     title: "New personal chat",
@@ -57,6 +72,155 @@ const composePanelContent = {
     focusId: "groupNameInput"
   }
 };
+let activeEmojiCategory = emojiCatalog[0].id;
+const emojiSearchIndex = {
+  smileys: [
+    ["grinning", "happy", "smile"],
+    ["smile", "joy", "happy"],
+    ["beam", "grin", "happy"],
+    ["slight smile", "calm", "friendly"],
+    ["blush", "smile", "warm"],
+    ["wink", "playful"],
+    ["love", "heart eyes"],
+    ["kiss", "love"],
+    ["cool", "sunglasses"],
+    ["party", "celebration"],
+    ["hug", "support"],
+    ["angel", "innocent"],
+    ["sleep", "tired"],
+    ["thinking", "hmm"],
+    ["relief", "awkward", "sweat"],
+    ["laugh", "funny", "tears"],
+    ["cry", "sad", "tears"],
+    ["angry", "mad"]
+  ],
+  gestures: [
+    ["wave", "hi", "hello", "bye"],
+    ["handshake", "deal", "agree"],
+    ["thumbs up", "good", "ok", "yes"],
+    ["clap", "applause"],
+    ["celebrate", "raise hands"],
+    ["perfect", "okay"],
+    ["peace", "victory"],
+    ["luck", "hope"],
+    ["thanks", "please", "pray"],
+    ["strong", "muscle"],
+    ["look", "watch"],
+    ["fire", "lit", "great"],
+    ["love", "heart"],
+    ["100", "perfect"],
+    ["sparkles", "shine"]
+  ],
+  work: [
+    ["office", "work", "briefcase"],
+    ["calendar", "schedule", "date"],
+    ["location", "pin", "place"],
+    ["call", "phone"],
+    ["message", "chat"],
+    ["notes", "write", "memo"],
+    ["attachment", "paperclip", "file"],
+    ["done", "check", "completed"],
+    ["waiting", "pending", "time"],
+    ["launch", "ship", "fast"],
+    ["laptop", "computer", "code"],
+    ["chart", "report", "data"],
+    ["pin", "important"],
+    ["folder", "files"]
+  ]
+};
+
+function renderEmojiCategoryTabs() {
+  emojiCategoryTabs.innerHTML = "";
+
+  emojiCatalog.forEach((category) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `emoji-category-tab ${category.id === activeEmojiCategory ? "is-active" : ""}`;
+    button.textContent = category.label;
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      activeEmojiCategory = category.id;
+      renderEmojiCategoryTabs();
+      renderEmojiGrid();
+    });
+    emojiCategoryTabs.appendChild(button);
+  });
+}
+
+function insertEmojiAtCursor(emoji) {
+  const start = messageInput.selectionStart ?? messageInput.value.length;
+  const end = messageInput.selectionEnd ?? messageInput.value.length;
+  const value = messageInput.value;
+  messageInput.value = `${value.slice(0, start)}${emoji}${value.slice(end)}`;
+  const cursorPosition = start + emoji.length;
+  messageInput.focus();
+  messageInput.setSelectionRange(cursorPosition, cursorPosition);
+  queueSuggestionRefresh();
+}
+
+function renderEmojiGrid() {
+  const searchValue = emojiSearchInput.value.trim().toLowerCase();
+  const selectedCategory = emojiCatalog.find((category) => category.id === activeEmojiCategory) || emojiCatalog[0];
+  const emojis = selectedCategory.emojis
+    .map((emoji, index) => ({
+      symbol: emoji,
+      keywords: emojiSearchIndex[selectedCategory.id]?.[index] || []
+    }))
+    .filter((emoji) => {
+      if (!searchValue) {
+        return true;
+      }
+
+      const haystack = [emoji.symbol, ...emoji.keywords].join(" ").toLowerCase();
+      return haystack.includes(searchValue);
+    });
+
+  emojiGrid.innerHTML = "";
+
+  if (!emojis.length) {
+    const emptyState = document.createElement("div");
+    emptyState.className = "emoji-empty-state";
+    emptyState.textContent = "No emojis found";
+    emojiGrid.appendChild(emptyState);
+    return;
+  }
+
+  emojis.forEach((emoji) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "emoji-item";
+    button.textContent = emoji.symbol;
+    button.title = emoji.keywords.join(", ");
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      insertEmojiAtCursor(emoji.symbol);
+    });
+    emojiGrid.appendChild(button);
+  });
+}
+
+function closeEmojiPicker() {
+  emojiPicker.hidden = true;
+  emojiToggleButton.classList.remove("is-active");
+}
+
+function toggleEmojiPicker() {
+  const willOpen = emojiPicker.hidden;
+  emojiPicker.hidden = !willOpen;
+  emojiToggleButton.classList.toggle("is-active", willOpen);
+
+  if (willOpen) {
+    renderEmojiCategoryTabs();
+    renderEmojiGrid();
+    emojiSearchInput.value = "";
+    emojiSearchInput.focus();
+    return;
+  }
+
+  messageInput.focus();
+}
 
 function getStoredUser() {
   const rawUser = localStorage.getItem("chatUser");
@@ -113,6 +277,9 @@ function getPersonalRoomKey(targetEmail) {
 function clearMessages() {
   chatMessages.innerHTML = dateDividerMarkup;
   renderedMessageIds.clear();
+  renderSuggestionButtons(predictiveSuggestions, []);
+  renderReplyButtons([]);
+  closeEmojiPicker();
 }
 
 function formatFileSize(size = 0) {
@@ -310,6 +477,7 @@ function appendMessage(message) {
 
   chatMessages.appendChild(messageElement);
   scrollToBottom();
+  queueSuggestionRefresh();
 }
 
 function renderMessages(messages) {
@@ -339,6 +507,118 @@ async function apiRequest(url, options = {}) {
   }
 
   return data;
+}
+
+function getActiveConversationMessages() {
+  if (activeConversation.type === "group") {
+    return groupMessagesById.get(activeConversation.groupId) || [];
+  }
+
+  return personalMessagesByRoom.get(activeConversation.roomId) || [];
+}
+
+function renderSuggestionButtons(container, suggestions) {
+  container.innerHTML = "";
+
+  if (!suggestions.length) {
+    container.hidden = true;
+    return;
+  }
+
+  suggestions.forEach((suggestion) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "suggestion-chip";
+    button.textContent = suggestion;
+    button.addEventListener("click", () => {
+      const currentText = messageInput.value.trimEnd();
+      const nextText = currentText ? `${currentText} ${suggestion}` : suggestion;
+      messageInput.value = nextText;
+      messageInput.focus();
+      queueSuggestionRefresh();
+    });
+    container.appendChild(button);
+  });
+
+  container.hidden = false;
+}
+
+function sendReplySuggestion(text) {
+  messageInput.value = text;
+  chatForm.requestSubmit();
+}
+
+function renderReplyButtons(replies) {
+  smartReplies.innerHTML = "";
+
+  if (!replies.length) {
+    smartReplies.hidden = true;
+    return;
+  }
+
+  const label = document.createElement("div");
+  label.className = "reply-strip-label";
+  label.textContent = "Smart replies";
+  smartReplies.appendChild(label);
+
+  replies.forEach((reply) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "reply-chip";
+    button.textContent = reply;
+    button.addEventListener("click", () => {
+      sendReplySuggestion(reply);
+    });
+    smartReplies.appendChild(button);
+  });
+
+  smartReplies.hidden = false;
+}
+
+async function fetchAiSuggestions() {
+  const requestId = ++suggestionRequestId;
+  const recentMessages = getActiveConversationMessages().slice(-8);
+  const draft = messageInput.value.trim();
+
+  try {
+    const data = await apiRequest("/ai/suggestions", {
+      method: "POST",
+      body: JSON.stringify({
+        draft,
+        recentMessages,
+        conversationType: activeConversation.type,
+        conversationName: activeConversation.name
+      })
+    });
+
+    if (requestId !== suggestionRequestId) {
+      return;
+    }
+
+    renderSuggestionButtons(
+      predictiveSuggestions,
+      Array.isArray(data.predictiveSuggestions) ? data.predictiveSuggestions : []
+    );
+    renderReplyButtons(Array.isArray(data.smartReplies) ? data.smartReplies : []);
+  } catch (error) {
+    if (requestId !== suggestionRequestId) {
+      return;
+    }
+
+    renderSuggestionButtons(predictiveSuggestions, []);
+    renderReplyButtons([]);
+  }
+}
+
+function queueSuggestionRefresh() {
+  if (suggestionDebounceId) {
+    window.clearTimeout(suggestionDebounceId);
+  }
+
+  suggestionDebounceId = window.setTimeout(() => {
+    suggestionDebounceId = null;
+    fetchAiSuggestions();
+  }, 450);
 }
 
 async function loadGroups() {
@@ -518,9 +798,14 @@ function setActiveChatItem(nextItem) {
 
 function setComposePanel(target) {
   const nextPanel = composePanelContent[target] ? target : "personal";
+  composeCard.hidden = false;
 
   document.querySelectorAll("[data-compose-panel]").forEach((panel) => {
     panel.classList.toggle("is-active", panel.dataset.composePanel === nextPanel);
+  });
+
+  document.querySelectorAll("[data-compose-secondary]").forEach((panel) => {
+    panel.hidden = panel.dataset.composeSecondary !== nextPanel;
   });
 
   composeTitle.textContent = composePanelContent[nextPanel].title;
@@ -529,6 +814,10 @@ function setComposePanel(target) {
 
   const focusElement = document.getElementById(composePanelContent[nextPanel].focusId);
   focusElement?.focus();
+}
+
+function closeComposePanel() {
+  composeCard.hidden = true;
 }
 
 function filterConversationItems(searchTerm) {
@@ -631,11 +920,13 @@ async function activateConversation(item) {
     const messages = groupMessagesById.get(activeConversation.groupId) || await loadGroupMessages(activeConversation.groupId);
     renderMessages(messages);
     joinGroupRoom(activeConversation.groupId);
+    queueSuggestionRefresh();
     return;
   }
 
   renderMessages(personalMessagesByRoom.get(activeConversation.roomId) || []);
   joinPersonalRoom(activeConversation.roomId, activeConversation.email);
+  queueSuggestionRefresh();
 }
 
 function connectWebSocket() {
@@ -800,6 +1091,7 @@ chatForm.addEventListener("submit", async (event) => {
       personalMessagesByRoom.set(activeConversation.roomId, roomMessages);
       appendMessage(response.data);
       messageInput.value = "";
+      queueSuggestionRefresh();
     });
 
     return;
@@ -819,6 +1111,7 @@ chatForm.addEventListener("submit", async (event) => {
     groupMessagesById.set(activeConversation.groupId, groupMessages);
     appendMessage(response.data);
     messageInput.value = "";
+    queueSuggestionRefresh();
   });
 });
 
@@ -914,6 +1207,24 @@ document.addEventListener("click", (event) => {
   if (!sidebarMenu.contains(event.target) && event.target !== sidebarMenuButton) {
     sidebarMenu.classList.remove("is-open");
   }
+
+  if (
+    !composeCard.hidden &&
+    !composeCard.contains(event.target) &&
+    !sidebarMenu.contains(event.target) &&
+    event.target !== sidebarMenuButton &&
+    !sidebarMenuButton.contains(event.target)
+  ) {
+    closeComposePanel();
+  }
+
+  if (
+    !emojiPicker.contains(event.target) &&
+    event.target !== emojiToggleButton &&
+    !emojiToggleButton.contains(event.target)
+  ) {
+    closeEmojiPicker();
+  }
 });
 
 conversationSearchInput.addEventListener("input", (event) => {
@@ -929,6 +1240,24 @@ mediaInput.addEventListener("change", (event) => {
 
   pendingAttachment = file;
   renderAttachmentPreview();
+});
+
+messageInput.addEventListener("input", () => {
+  queueSuggestionRefresh();
+});
+
+emojiToggleButton.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  toggleEmojiPicker();
+});
+
+emojiSearchInput.addEventListener("input", () => {
+  renderEmojiGrid();
+});
+
+emojiPicker.addEventListener("click", (event) => {
+  event.stopPropagation();
 });
 
 logoutButton.addEventListener("click", () => {
@@ -979,5 +1308,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
 
   setComposePanel("personal");
+  composeCard.hidden = true;
   messageInput.focus();
+  queueSuggestionRefresh();
 });

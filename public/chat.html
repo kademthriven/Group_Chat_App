@@ -42,7 +42,7 @@
       </div>
 
       <div class="sidebar-search">
-        <div class="compose-card">
+        <div id="composeCard" class="compose-card" hidden>
           <div class="compose-card-header">
             <div>
               <p class="sidebar-section-title mb-1" id="composeTitle">New personal chat</p>
@@ -72,7 +72,7 @@
             <button type="submit" class="btn btn-primary w-100 mt-3">Create group</button>
           </form>
 
-          <form id="groupJoinForm" class="join-code-form mt-3">
+          <form id="groupJoinForm" class="join-code-form mt-3" data-compose-secondary="group">
             <input
               type="text"
               id="groupCodeInput"
@@ -165,8 +165,24 @@
 
       <div class="chat-input-area">
         <div id="attachmentPreview" class="attachment-preview"></div>
+        <div id="predictiveSuggestions" class="suggestion-strip" hidden></div>
+        <div id="smartReplies" class="reply-strip" hidden></div>
+        <div id="emojiPicker" class="emoji-picker" hidden>
+          <div class="emoji-picker-header">
+            <input
+              type="text"
+              id="emojiSearchInput"
+              class="form-control emoji-search-input"
+              placeholder="Search emoji"
+              autocomplete="off"
+            />
+          </div>
+          <div class="emoji-category-tabs" id="emojiCategoryTabs"></div>
+          <div class="emoji-grid" id="emojiGrid"></div>
+        </div>
         <form id="chatForm" class="chat-form">
           <label for="mediaInput" class="media-picker-btn" title="Share media">+</label>
+          <button type="button" id="emojiToggleButton" class="emoji-toggle-btn" title="Open emoji picker" aria-label="Open emoji picker">☺</button>
           <input
             type="file"
             id="mediaInput"
